@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Hedge Engine — Nifty Risk System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════
+   DESIGN TOKENS — identical to dashboard.html
+═══════════════════════════════════════════════════ */
+:root {
+  --bg:        #F8F9FA;
+  --bg2:       #FFFFFF;
+  --bg3:       #F3F4F6;
+  --border:    #E5E7EB;
+  --border2:   #D1D5DB;
+  --text:      #111827;
+  --muted:     #6B7280;
+  --muted2:    #4B5563;
+  --primary:   #2563EB;
+  --primary-bg:#EFF6FF;
+  --red:       #EF4444;
+  --red-bg:    #FEF2F2;
+  --amber:     #F59E0B;
+  --amber-bg:  #FFFBEB;
+  --green:     #10B981;
+  --green-bg:  #ECFDF5;
+  --font-head: 'Inter', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --r:         8px;
+  --r2:        6px;
+  --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
+  --shadow:    0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── Header (identical to dashboard.html) ── */
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+@media(max-width:600px) { .header { padding: 12px 16px; flex-direction: column; align-items: flex-start; gap: 12px; } }
+.header-left  { display: flex; align-items: center; gap: 14px; }
+.header-logo  { font-family: var(--font-head); font-weight: 700; font-size: 18px; letter-spacing: -0.02em; color: var(--text); }
+.header-logo span { color: var(--primary); }
+.header-tag   { font-family: var(--font-mono); font-size: 10px; padding: 3px 8px; background: var(--primary-bg); color: var(--primary); border: 1px solid rgba(37,99,235,0.2); border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+.back-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--r2);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
+}
+.back-btn:hover { background: var(--bg3); }
+
+/* ── Layout ── */
+.main { max-width: 1440px; margin: 0 auto; padding: 32px 32px 60px; }
+@media(max-width:600px) { .main { padding: 16px 16px 40px; } }
+
+/* ── Section heads (identical to dashboard.html) ── */
+.section-head {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 16px;
+  margin-top: 36px;
+}
+.section-head::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.section-head:first-of-type { margin-top: 0; }
+
+/* ── Cards (identical to dashboard.html) ── */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+@media(max-width:600px) { .card { padding: 16px; } .card-title[style*="padding:20px"] { padding: 16px 16px 0 !important; } }
+.card-title {
+  font-family: var(--font-head);
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 16px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.card-title-badge {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg3);
+  color: var(--muted2);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+/* ── Intro two-col ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media(max-width:900px){ .two-col { grid-template-columns: 1fr; } }
+
+/* ── Input panel ── */
+.input-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 24px; box-shadow: var(--shadow); }
+@media(max-width:600px) { .input-panel { padding: 16px; } }
+
+/* ── Holdings Table ── */
+.table-scroll { overflow-x: auto; }
+.holdings-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.holdings-table th {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--muted); padding: 10px 14px; text-align: left;
+  border-bottom: 1px solid var(--border); background: var(--bg3); white-space: nowrap;
+}
+.holdings-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.holdings-table tr:last-child td { border-bottom: none; }
+.holdings-table tr:hover td { background: var(--bg3); }
+
+.td-input {
+  background: transparent; border: 1px solid transparent; color: var(--text);
+  font-family: var(--font-body); font-size: 13px; padding: 5px 8px; border-radius: 4px;
+  width: 100%; outline: none; transition: all 0.2s;
+}
+.td-input:focus { border-color: var(--primary); background: var(--primary-bg); }
+.td-select {
+  background: transparent; border: 1px solid transparent; color: var(--text);
+  font-family: var(--font-body); font-size: 13px; padding: 5px 8px; border-radius: 4px;
+  outline: none; transition: all 0.2s; cursor: pointer; width: 100%;
+}
+.td-select:focus { border-color: var(--primary); background: var(--primary-bg); }
+.td-select option { background: var(--bg2); }
+
+.beta-badge {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 4px;
+}
+.beta-neg   { background: var(--green-bg);   color: var(--green); }
+.beta-low   { background: var(--bg3);         color: var(--muted); }
+.beta-mid   { background: var(--primary-bg);  color: var(--primary); }
+.beta-high  { background: var(--red-bg);      color: var(--red); }
+
+.del-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  width: 28px; height: 28px; border-radius: 4px; cursor: pointer;
+  font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+}
+.del-btn:hover { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+
+.add-row-btn {
+  background: var(--bg3); border: 1px dashed var(--border2); color: var(--muted2);
+  font-family: var(--font-body); font-size: 13px; font-weight: 500;
+  padding: 9px 18px; border-radius: var(--r2); cursor: pointer; margin-top: 12px;
+  transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
+}
+.add-row-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ── Allocation bar ── */
+.alloc-bar-wrap {
+  display: flex; align-items: center; gap: 12px; margin-top: 16px;
+  padding: 12px 16px; background: var(--bg3); border-radius: var(--r2);
+  border: 1px solid var(--border);
+}
+.alloc-bar-track {
+  flex: 1; height: 8px; background: var(--border); border-radius: 4px;
+  overflow: hidden; display: flex;
+}
+.alloc-seg { height: 100%; transition: width 0.4s ease; }
+.alloc-seg.equity { background: var(--primary); }
+.alloc-seg.debt   { background: var(--green); }
+.alloc-seg.gold   { background: var(--amber); }
+.alloc-seg.intl   { background: #7C3AED; }
+.alloc-seg.cash   { background: var(--muted); }
+.alloc-total-label { font-family: var(--font-mono); font-size: 12px; font-weight: 700; min-width: 48px; text-align: right; }
+.alloc-total-label.over  { color: var(--red); }
+.alloc-total-label.under { color: var(--amber); }
+.alloc-total-label.ok    { color: var(--green); }
+
+/* ── Value input row ── */
+.analyse-row { display: flex; align-items: flex-end; gap: 16px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+@media(max-width:600px) { .analyse-row { flex-direction: column; align-items: stretch; } .value-input-wrap, .analyse-btn, .value-input { width: 100%; } }
+.field-group { display: flex; flex-direction: column; gap: 6px; }
+.field-label { font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--muted); }
+.field-note  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.value-input-wrap { display: flex; align-items: center; gap: 0; background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--r2); overflow: hidden; }
+.value-prefix { padding: 9px 10px; font-family: var(--font-mono); font-size: 13px; color: var(--muted); background: var(--bg3); border-right: 1px solid var(--border); }
+.value-input { border: none; outline: none; padding: 9px 12px; font-family: var(--font-mono); font-size: 13px; color: var(--text); background: transparent; width: 160px; }
+.value-input::placeholder { color: var(--muted); }
+.analyse-btn {
+  background: var(--primary); border: none; color: white;
+  font-family: var(--font-body); font-size: 14px; font-weight: 600;
+  padding: 11px 28px; border-radius: var(--r2); cursor: pointer;
+  transition: all 0.2s; box-shadow: 0 2px 8px rgba(37,99,235,0.3);
+  letter-spacing: -0.01em;
+}
+.analyse-btn:hover { background: #1D4ED8; box-shadow: 0 4px 16px rgba(37,99,235,0.4); }
+
+/* ── Error msg ── */
+.error-msg { background: var(--red-bg); border: 1px solid rgba(239,68,68,0.3); border-radius: var(--r2); padding: 10px 14px; color: var(--red); font-size: 13px; margin-bottom: 14px; display: none; }
+
+/* ── Results ── */
+#resultsSection { display: none; }
+
+/* ── Metrics tiles (same as dashboard tiles) ── */
+.tiles-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
+@media(max-width:1100px){ .tiles-5 { grid-template-columns: repeat(3,1fr); } }
+@media(max-width:700px)  { .tiles-5 { grid-template-columns: repeat(2,1fr); } }
+@media(max-width:480px)  { .tiles-5 { grid-template-columns: 1fr; } }
+
+.tile {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 16px;
+  position: relative; box-shadow: var(--shadow-sm);
+}
+.tile::before {
+  content: ''; position: absolute; top: 0; left: 0; bottom: 0;
+  width: 3px; border-radius: var(--r) 0 0 var(--r);
+}
+.tile.green::before  { background: var(--green); }
+.tile.amber::before  { background: var(--amber); }
+.tile.red::before    { background: var(--red); }
+.tile.blue::before   { background: var(--primary); }
+.tile.neutral::before{ background: var(--border2); }
+.tile-label { font-weight: 500; font-size: 13px; color: var(--muted2); margin-bottom: 8px; }
+.tile-value { font-family: var(--font-mono); font-weight: 700; font-size: 22px; color: var(--text); line-height: 1; margin-bottom: 6px; }
+.tile-sub   { font-size: 11px; color: var(--muted); }
+.tile-status {
+  display: inline-block; font-family: var(--font-mono); font-weight: 600;
+  font-size: 10px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; margin-bottom: 6px;
+}
+.tile.green  .tile-status { background: var(--green-bg); color: var(--green); }
+.tile.amber  .tile-status { background: var(--amber-bg); color: var(--amber); }
+.tile.red    .tile-status { background: var(--red-bg);   color: var(--red); }
+.tile.blue   .tile-status { background: var(--primary-bg); color: var(--primary); }
+.tile.neutral .tile-status { background: var(--bg3); color: var(--muted2); }
+
+/* ── Crash cards ── */
+.crash-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; margin-bottom: 24px; }
+@media(max-width:800px){ .crash-grid { grid-template-columns: 1fr; } }
+.crash-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; box-shadow: var(--shadow-sm); }
+.crash-card-title { font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+.crash-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.crash-row:last-child { border-bottom: none; }
+.crash-lbl { color: var(--muted2); }
+.crash-val { font-family: var(--font-mono); font-weight: 600; }
+.crash-val.loss  { color: var(--red); }
+.crash-val.gain  { color: var(--green); }
+.crash-val.muted { color: var(--muted2); }
+
+/* ── Strategy cards ── */
+.strat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 24px; }
+@media(max-width:1100px){ .strat-grid { grid-template-columns: repeat(2,1fr); } }
+@media(max-width:600px)  { .strat-grid { grid-template-columns: 1fr; } }
+.strat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; box-shadow: var(--shadow-sm); transition: border-color 0.2s, transform 0.2s; }
+.strat-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+.strat-card.top3 { border-color: rgba(37,99,235,0.3); }
+.strat-head { padding: 14px 16px; background: var(--bg3); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; }
+.strat-rank  { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+.strat-name  { font-size: 13px; font-weight: 600; color: var(--text); }
+.strat-score { font-family: var(--font-mono); font-size: 20px; font-weight: 700; color: var(--primary); }
+.strat-body  { padding: 14px 16px; }
+.strat-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.strat-row:last-child { border-bottom: none; }
+.strat-row-lbl { color: var(--muted); }
+.strat-row-val { font-family: var(--font-mono); font-weight: 600; color: var(--text); }
+.strat-row-val.green  { color: var(--green); }
+.strat-row-val.amber  { color: var(--amber); }
+.strat-row-val.red    { color: var(--red); }
+.strat-note { font-size: 11px; color: var(--muted); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); line-height: 1.5; }
+.trigger-badge { font-family: var(--font-mono); font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 3px; margin-top: 8px; display: inline-block; }
+.trigger-a { background: var(--green-bg); color: var(--green); border: 1px solid rgba(16,185,129,0.25); }
+.trigger-b { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
+.trigger-c { background: var(--red-bg);   color: var(--red);   border: 1px solid rgba(239,68,68,0.25); }
+
+/* ── Scenario table (identical to dashboard scorecard table) ── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 860px; }
+.data-table th {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--muted); padding: 10px 12px; text-align: center;
+  border-bottom: 1px solid var(--border); background: var(--bg3); white-space: nowrap;
+}
+.data-table th.left { text-align: left; }
+.data-table td {
+  padding: 9px 12px; border-bottom: 1px solid var(--border); text-align: center;
+  font-family: var(--font-mono); color: var(--muted2); font-size: 12px;
+}
+.data-table td.ep-name { text-align: left; font-family: var(--font-body); font-weight: 500; color: var(--text); font-size: 13px; }
+.data-table tr:hover td { background: var(--bg3); }
+.data-table tr:last-child td { border-bottom: none; }
+.cell-loss { color: var(--red)  !important; font-weight: 700; }
+.cell-gain { color: var(--green)!important; font-weight: 600; }
+
+/* ── Playbook (matches dashboard playbook-grid) ── */
+.playbook-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+@media(max-width:900px){ .playbook-grid { grid-template-columns: 1fr; } }
+.pb-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; box-shadow: var(--shadow-sm); }
+.pb-header { padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg3); display: flex; align-items: center; gap: 12px; }
+.pb-letter {
+  font-family: var(--font-mono); font-weight: 700; font-size: 22px;
+  width: 44px; height: 44px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.pb-letter.a { background: var(--green-bg); color: var(--green); }
+.pb-letter.b { background: var(--amber-bg); color: var(--amber); }
+.pb-letter.c { background: var(--red-bg);   color: var(--red); }
+.pb-title    { font-size: 15px; font-weight: 600; color: var(--text); }
+.pb-subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.pb-body     { padding: 16px 20px; }
+.pb-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.pb-row:last-child { border-bottom: none; }
+.pb-row-lbl { color: var(--muted); min-width: 80px; }
+.pb-row-val { font-weight: 500; color: var(--text); text-align: right; }
+.pb-row-val.green  { color: var(--green); font-weight: 600; }
+.pb-row-val.amber  { color: var(--amber); }
+
+/* ── Download buttons (same as dashboard) ── */
+.dl-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+@media(max-width:600px) { .dl-row { flex-direction: column; } .dl-btn { width: 100%; justify-content: center; } }
+.dl-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--bg2); border: 1px solid var(--border2);
+  color: var(--muted2); font-family: var(--font-body); font-size: 13px; font-weight: 500;
+  padding: 10px 18px; border-radius: var(--r2); cursor: pointer; transition: all 0.2s; box-shadow: var(--shadow-sm);
+}
+.dl-btn:hover { border-color: var(--primary); color: var(--primary); }
+.dl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.dl-btn.loading { opacity: 0.7; }
+
+/* ── Scorecard table ── */
+.score-table { width: 100%; border-collapse: collapse; }
+.score-table th { font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--muted); padding: 10px 16px; text-align: left; border-bottom: 1px solid var(--border); background: var(--bg3); }
+.score-table td { padding: 11px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.score-table tr:last-child td { border-bottom: none; }
+.score-table tr:hover td { background: var(--bg3); }
+.rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 4px; font-family: var(--font-mono); font-weight: 700; font-size: 11px; }
+.rank-1 { background: #FEF3C7; color: #B45309; }
+.rank-2 { background: #F3F4F6; color: #4B5563; }
+.rank-3 { background: #FFEDD5; color: #9A3412; }
+.rank-n { background: var(--bg3); color: var(--muted); }
+
+/* ── Info bullets ── */
+.info-list { list-style: none; padding: 0; }
+.info-list li { font-size: 13px; color: var(--muted2); padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 8px; line-height: 1.6; }
+.info-list li:last-child { border-bottom: none; }
+.info-list li::before { content: '→'; color: var(--primary); font-family: var(--font-mono); font-size: 11px; flex-shrink: 0; margin-top: 2px; }
+.pill { display: inline-block; font-family: var(--font-mono); font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 600; margin-right: 4px; }
+.pill-green { background: var(--green-bg); color: var(--green); border: 1px solid rgba(16,185,129,0.25); }
+.pill-blue  { background: var(--primary-bg); color: var(--primary); border: 1px solid rgba(37,99,235,0.2); }
+.pill-amber { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
+
+/* ── Footer ── */
+.footer { border-top: 1px solid var(--border); padding: 24px 32px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+
+/* ── Loading bar ── */
+.loading-bar { height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; margin-bottom: 20px; }
+.loading-fill { height: 100%; width: 0%; background: var(--primary); border-radius: 1px; transition: width 0.5s ease; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <div class="header-logo">NIFTY<span>50</span> RISK ENGINE</div>
+    <div class="header-tag">Portfolio Hedge Module v2.0</div>
+  </div>
+  <div>
+    <a href="/" class="back-btn">← Back to Dashboard</a>
+  </div>
+</header>
+
+<main class="main">
+
+  <!-- ── How it works ── -->
+  <div class="section-head" style="margin-top:0;">How This Works</div>
+  <div class="two-col" style="margin-bottom:0;">
+    <div class="card">
+      <div class="card-title">What you enter</div>
+      <ul class="info-list">
+        <li>Your holdings — name, asset type, % allocation</li>
+        <li>Portfolio total value (optional — enables ₹ outputs)</li>
+        <li>Custom beta overrides if you know your stock's actual β</li>
+      </ul>
+      <div style="margin-top:12px; font-size:13px; color:var(--muted);">No ticker lookup needed. Asset type is enough for beta estimation.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">What you get</div>
+      <ul class="info-list">
+        <li>Portfolio Beta — how much you move with the Nifty</li>
+        <li>All 8 hedge strategies scaled to your actual exposure</li>
+        <li>Scenario table: what each historical crash would have cost <em>you</em></li>
+        <li>A personalised A / B / C strategy playbook</li>
+      </ul>
+      <div style="margin-top:12px;">
+        <span class="pill pill-green">% always shown</span>
+        <span class="pill pill-blue">₹ shown if value provided</span>
+        <span class="pill pill-amber">30yr back-test data</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Input ── -->
+  <div class="section-head">Enter Your Portfolio</div>
+  <div class="input-panel">
+    <div class="card-title" style="margin-bottom:16px;">Portfolio Holdings</div>
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="table-scroll">
+      <table class="holdings-table" id="holdingsTable">
+        <thead>
+          <tr>
+            <th style="width:32px;">#</th>
+            <th style="min-width:180px;">Holding Name</th>
+            <th style="min-width:220px;">Asset Type</th>
+            <th style="min-width:80px;">Alloc %</th>
+            <th style="min-width:80px;">Beta (β)</th>
+            <th style="min-width:85px;">Custom β</th>
+            <th style="width:36px;"></th>
+          </tr>
+        </thead>
+        <tbody id="holdingsBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Allocation bar -->
+    <div class="alloc-bar-wrap">
+      <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);min-width:44px;font-weight:600;">ALLOC</span>
+      <div class="alloc-bar-track" id="allocBar">
+        <div class="alloc-seg equity" id="seg-equity" style="width:0%"></div>
+        <div class="alloc-seg debt"   id="seg-debt"   style="width:0%"></div>
+        <div class="alloc-seg gold"   id="seg-gold"   style="width:0%"></div>
+        <div class="alloc-seg intl"   id="seg-intl"   style="width:0%"></div>
+        <div class="alloc-seg cash"   id="seg-cash"   style="width:0%"></div>
+      </div>
+      <div style="display:flex;gap:10px;font-size:10px;font-family:var(--font-mono);flex-wrap:wrap;color:var(--muted);">
+        <span><span style="color:var(--primary);">■</span> Equity</span>
+        <span><span style="color:var(--green);">■</span> Debt</span>
+        <span><span style="color:var(--amber);">■</span> Gold</span>
+        <span><span style="color:#7C3AED;">■</span> Intl</span>
+        <span><span style="color:var(--muted);">■</span> Cash</span>
+      </div>
+      <div class="alloc-total-label ok" id="allocTotal">0%</div>
+    </div>
+
+    <button class="add-row-btn" onclick="addRow()">+ Add Holding</button>
+
+    <div class="analyse-row">
+      <div class="field-group">
+        <div class="field-label">Total Portfolio Value (Optional)</div>
+        <div class="value-input-wrap">
+          <span class="value-prefix">₹</span>
+          <input class="value-input" id="portfolioValue" type="number" placeholder="e.g. 5000000" min="0">
+        </div>
+        <div class="field-note">Leave blank for % outputs only. Enter in rupees (50L = 5000000)</div>
+      </div>
+      <button class="analyse-btn" onclick="runAnalysis()">Analyse Portfolio →</button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       RESULTS (hidden until analysis runs)
+  ════════════════════════════════════════ -->
+  <div id="resultsSection">
+    <div class="loading-bar"><div class="loading-fill" id="loadingFill"></div></div>
+
+    <!-- 2. Portfolio Profile -->
+    <div class="section-head">Your Portfolio Profile</div>
+    <div class="tiles-5" id="metricsStrip"></div>
+
+    <!-- 3. Crash Impact -->
+    <div class="section-head">What Past Crashes Would Have Done to You</div>
+    <div class="crash-grid" id="crashGrid"></div>
+
+    <!-- 4. Strategy Scorecard -->
+    <div class="section-head">Strategy Scorecard — Scaled to Your Portfolio</div>
+    <div class="two-col">
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="card-title" style="padding:20px 20px 0;">
+          Hedge Rankings
+          <span class="card-title-badge">30yr Back-test · 8 Strategies</span>
+        </div>
+        <div style="padding:12px 0 0; overflow-x: auto;">
+          <table class="score-table" id="scorecardTable"></table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Strategy Recommendations</div>
+        <div id="stratCards"></div>
+      </div>
+    </div>
+
+    <!-- 5. Full Scenario Table -->
+    <div class="section-head">Full Scenario Table — How Each Hedge Offsets Your Loss</div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div class="table-scroll" style="padding:0;">
+        <table class="data-table" id="scenarioTable"></table>
+      </div>
+    </div>
+
+    <!-- 6. Playbook -->
+    <div class="section-head">Your Personalised Playbook</div>
+    <div class="playbook-grid" id="playbookGrid"></div>
+
+    <!-- 7. Downloads -->
+    <div class="section-head">Export Reports</div>
+    <div class="card">
+      <div class="card-title">Download Your Analysis
+        <span class="card-title-badge">Requires backend server running</span>
+      </div>
+      <div style="font-size:13px;color:var(--muted2);margin-bottom:16px;line-height:1.7;">
+        The exports are generated by the Python engine on the server and include all 5 analysis sheets with your actual portfolio data, live Nifty 100-DMA status, and personalised hedge sizing.
+      </div>
+      <div class="dl-row">
+        <button type="button" class="dl-btn" id="btnExcel" onclick="downloadExcel()">⬇ Download Excel Report (.xlsx)</button>
+        <button type="button" class="dl-btn" id="btnWord" onclick="downloadWord()">⬇ Download Word Report (.docx)</button>
+        <button type="button" class="dl-btn" onclick="window.print()">🖨 Print / Save as PDF</button>
+      </div>
+      <div id="dlStatus" style="margin-top:10px;font-family:var(--font-mono);font-size:11px;color:var(--muted);"></div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="footer">
+  Portfolio Hedge Module v2.0 — Part of the Nifty 50 Institutional Risk Engine.<br>
+  Back-test: 1996–2026 · 8 hedging strategies · Beta-weighted portfolio scaling.<br>
+  ⚠ All P&amp;L figures are pre-tax. Past performance does not guarantee future results.
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// ASSET TYPE CONFIG
+// ═══════════════════════════════════════════════════════════════
+const ASSET_TYPES = {
+  "nifty_etf"          : { label:"Nifty ETF / Index Fund",           beta:1.00, cat:"equity" },
+  "large_cap_stock"    : { label:"Large Cap Stock (Nifty 50)",        beta:1.05, cat:"equity" },
+  "mid_cap_stock"      : { label:"Mid Cap Stock",                     beta:1.35, cat:"equity" },
+  "small_cap_stock"    : { label:"Small Cap Stock",                   beta:1.55, cat:"equity" },
+  "multi_cap_fund"     : { label:"Multi Cap / Flexi Cap Fund",        beta:1.10, cat:"equity" },
+  "sectoral_it"        : { label:"Sectoral — IT / Tech",              beta:1.20, cat:"equity" },
+  "sectoral_banking"   : { label:"Sectoral — Banking / Finance",      beta:1.15, cat:"equity" },
+  "sectoral_pharma"    : { label:"Sectoral — Pharma / Healthcare",    beta:0.80, cat:"equity" },
+  "sectoral_fmcg"      : { label:"Sectoral — FMCG / Consumer",        beta:0.70, cat:"equity" },
+  "sectoral_auto"      : { label:"Sectoral — Auto / EV",              beta:1.25, cat:"equity" },
+  "sectoral_infra"     : { label:"Sectoral — Infra / Capital Goods",  beta:1.30, cat:"equity" },
+  "sectoral_realty"    : { label:"Sectoral — Realty",                 beta:1.45, cat:"equity" },
+  "sectoral_metals"    : { label:"Sectoral — Metals / Mining",        beta:1.40, cat:"equity" },
+  "pms_aif"            : { label:"PMS / AIF / Unlisted",              beta:1.10, cat:"equity" },
+  "debt_liquid"        : { label:"Liquid / Overnight Debt Fund",      beta:0.05, cat:"debt"   },
+  "debt_shortterm"     : { label:"Short Term / Corporate Bond Fund",  beta:0.08, cat:"debt"   },
+  "debt_gilt"          : { label:"Gilt / Long Duration Fund",         beta:0.12, cat:"debt"   },
+  "gold_etf_sgb"       : { label:"Gold ETF / Sovereign Gold Bond",    beta:-0.20,cat:"gold"   },
+  "gold_fund"          : { label:"Gold Savings Fund",                 beta:-0.18,cat:"gold"   },
+  "reit_invit"         : { label:"REIT / InvIT",                      beta:0.55, cat:"equity" },
+  "international_fund" : { label:"International / US Fund",           beta:0.35, cat:"intl"   },
+  "us_tech_fund"       : { label:"US Tech / NASDAQ Fund",             beta:0.30, cat:"intl"   },
+  "cash_fd"            : { label:"Cash / FD / Savings",               beta:0.00, cat:"cash"   },
+};
+
+const DEFAULT_PORTFOLIO = [
+  { name:"Nifty BeES ETF",           type:"nifty_etf",       alloc:20, customBeta:null },
+  { name:"HDFC Bank",                type:"large_cap_stock", alloc: 8, customBeta:1.10 },
+  { name:"Infosys",                  type:"sectoral_it",     alloc: 7, customBeta:1.15 },
+  { name:"Reliance Industries",      type:"large_cap_stock", alloc: 6, customBeta:1.05 },
+  { name:"ICICI Pru Mid Cap Fund",   type:"mid_cap_stock",   alloc: 5, customBeta:null },
+  { name:"Kotak Flexicap Fund",      type:"multi_cap_fund",  alloc: 5, customBeta:null },
+  { name:"HDFC Liquid Fund",         type:"debt_liquid",     alloc:10, customBeta:null },
+  { name:"SBI Short Term Debt Fund", type:"debt_shortterm",  alloc: 5, customBeta:null },
+  { name:"Sovereign Gold Bond",      type:"gold_etf_sgb",    alloc: 8, customBeta:null },
+  { name:"Mirae US Tech Fund",       type:"us_tech_fund",    alloc: 4, customBeta:null },
+  { name:"Embassy REIT",             type:"reit_invit",      alloc: 3, customBeta:null },
+  { name:"Cash / FD",                type:"cash_fd",         alloc:19, customBeta:null },
+];
+
+// ── Strategy data (from back-test v3.0) ──
+const STRATS = [
+  { key:"S1", name:"Short Nifty Futures",        short:"ShortFut",  wr:100, avgPnl:23.34, worst:10.17, best:59.86, drag:0.20, score:77.5, trigger:"c", trigLabel:"VIX > 28 (C)",      note:"Full offset but unlimited upside sacrifice. Needs 25% margin buffer.", requires:"F&O account",               betaScale:true  },
+  { key:"S2", name:"ATM Protective Put",          short:"ATM Put",   wr:100, avgPnl:21.73, worst:8.25,  best:57.33, drag:1.20, score:71.6, trigger:"b", trigLabel:"2-of-3 signals (B)",note:"Best protection for known catalyst. Cost scales with VIX.",            requires:"F&O account",               betaScale:true  },
+  { key:"S7", name:"Collar (ATM Put + OTM Call)", short:"Collar",   wr:100, avgPnl:23.03, worst:9.45,  best:58.53, drag:0.60, score:70.0, trigger:"b", trigLabel:"Pre-event (B)",     note:"Sells upside to fund put. Ideal for elections/budgets.",               requires:"F&O account (2 legs)",      betaScale:true  },
+  { key:"S3", name:"5% OTM Protective Put",       short:"5%OTM",    wr:100, avgPnl:18.01, worst:3.25,  best:54.06, drag:0.70, score:65.0, trigger:"b", trigLabel:"2-of-3 signals (B)",note:"Cheaper than ATM. First 5% loss unhedged. Good for deep crashes.",    requires:"F&O account",               betaScale:true  },
+  { key:"S8", name:"Combined (Put+Gold+Debt)",    short:"Combined", wr:100, avgPnl:16.83, worst:6.26,  best:42.76, drag:0.80, score:63.2, trigger:"b", trigLabel:"2-of-3 signals (B)",note:"Diversified hedge. No single point of failure. Recommended for HNIs.", requires:"F&O + Demat + Debt fund",   betaScale:true  },
+  { key:"S6", name:"Debt Rotation 30%",           short:"Debt30",   wr:100, avgPnl:7.92,  worst:3.20,  best:19.52, drag:0.10, score:57.1, trigger:"a", trigLabel:"Always-on (A)",     note:"100% win rate. Reduces equity beta + earns 6.5% p.a. Simplest hedge.", requires:"Liquid / overnight debt fund",betaScale:false },
+  { key:"S5", name:"USD/INR Long 10%",            short:"USDINR",   wr:93.8,avgPnl:0.59,  worst:-0.04, best:2.68,  drag:0.10, score:41.8, trigger:"b", trigLabel:"INR stress",        note:"94% win rate. Useful for FX-driven drawdowns.",                       requires:"International fund / USD FD",betaScale:false },
+  { key:"S4", name:"Gold Allocation 15%",         short:"Gold15",   wr:68.8,avgPnl:0.90,  worst:-2.75, best:5.77,  drag:0.05, score:38.4, trigger:"a", trigLabel:"Always-on (A)",     note:"Positive in 69% of drawdowns. Low cost. Global crisis hedge.",        requires:"Gold ETF / SGB",            betaScale:false },
+];
+
+// Episode P&L table [S1,S2,S7,S3,S8,S6,S5,S4]
+const EPISODES = [
+  { ep:"2000 Dot-com",    dd:-51.36, dur:588, rec:818,  pnl:[51.36,48.75,49.95,45.50,36.74,18.55,null,null] },
+  { ep:"2004 Election",   dd:-29.94, dur:124, rec:199,  pnl:[29.94,28.16,29.36,24.44,19.04, 9.64,0.02,-1.47] },
+  { ep:"2008 GFC",        dd:-59.86, dur:293, rec:739,  pnl:[59.86,57.33,58.53,54.06,42.76,19.52,2.68, 1.07] },
+  { ep:"2010 Euro Debt",  dd:-28.01, dur:410, rec:684,  pnl:[28.01,26.04,28.01,22.57,25.85,10.59,1.97, 5.77] },
+  { ep:"2015 China",      dd:-22.52, dur:359, rec:383,  pnl:[22.52,20.99,22.52,17.31,18.32, 8.67,1.05, 2.04] },
+  { ep:"2018 IL&FS",      dd:-10.17, dur:53,  rec:123,  pnl:[10.17, 8.36,10.17, 4.82, 6.75, 3.33,0.25, 0.35] },
+  { ep:"2020 COVID",      dd:-38.44, dur:69,  rec:231,  pnl:[38.44,37.09,38.44,33.30,27.77,11.90,0.69, 1.29] },
+  { ep:"2024 FII Exodus", dd:-15.77, dur:159, rec:304,  pnl:[15.77,14.63,15.77,10.70,13.11, 5.58,0.44, 2.07] },
+  { ep:"2026 Curr. DD",   dd:-15.18, dur:87,  rec:null, pnl:[15.18,14.33,15.18,10.16,12.09, 5.02,0.54, 1.58] },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// TABLE HELPERS
+// ═══════════════════════════════════════════════════════════════
+function getTypeOptions(selected) {
+  return Object.entries(ASSET_TYPES).map(([k,v]) =>
+    `<option value="${k}" ${k===selected?'selected':''}>${v.label} (β=${v.beta})</option>`
+  ).join('');
+}
+function betaBadge(b) {
+  const cls = b < 0 ? 'beta-neg' : b < 0.15 ? 'beta-low' : b < 1.10 ? 'beta-mid' : 'beta-high';
+  return `<span class="beta-badge ${cls}">β ${b.toFixed(2)}</span>`;
+}
+function getEffBeta(row) {
+  const cb = parseFloat(row.querySelector('.custom-beta')?.value);
+  if (!isNaN(cb) && cb !== '') return cb;
+  const atype = row.querySelector('.type-sel')?.value;
+  return ASSET_TYPES[atype]?.beta ?? 1.0;
+}
+function updateRowBeta(row) {
+  const beta = getEffBeta(row);
+  row.querySelector('.beta-display').innerHTML = betaBadge(beta);
+  updateAllocBar();
+}
+function updateAllocBar() {
+  const rows = document.querySelectorAll('.holding-row');
+  let total = 0, equity = 0, debt = 0, gold = 0, intl = 0, cash = 0;
+  rows.forEach(r => {
+    const a = parseFloat(r.querySelector('.alloc-input')?.value) || 0;
+    const t = r.querySelector('.type-sel')?.value;
+    const cat = ASSET_TYPES[t]?.cat || 'equity';
+    total += a; equity += cat === 'equity' ? a : 0; debt += cat === 'debt' ? a : 0;
+    gold += cat === 'gold' ? a : 0; intl += cat === 'intl' ? a : 0; cash += cat === 'cash' ? a : 0;
+  });
+  const t = total || 1;
+  document.getElementById('seg-equity').style.width = `${equity/t*100}%`;
+  document.getElementById('seg-debt').style.width   = `${debt/t*100}%`;
+  document.getElementById('seg-gold').style.width   = `${gold/t*100}%`;
+  document.getElementById('seg-intl').style.width   = `${intl/t*100}%`;
+  document.getElementById('seg-cash').style.width   = `${cash/t*100}%`;
+  const el = document.getElementById('allocTotal');
+  el.textContent = `${total.toFixed(1)}%`;
+  el.className = 'alloc-total-label ' + (Math.abs(total-100)<0.5?'ok':total>100?'over':'under');
+}
+
+let rowCount = 0;
+function addRow(name='', type='large_cap_stock', alloc='', customBeta='') {
+  rowCount++;
+  const tbody = document.getElementById('holdingsBody');
+  const n = tbody.children.length + 1;
+  const tr = document.createElement('tr');
+  tr.className = 'holding-row';
+  tr.dataset.id = rowCount;
+  const effBeta = customBeta !== '' && !isNaN(parseFloat(customBeta))
+    ? parseFloat(customBeta)
+    : (ASSET_TYPES[type]?.beta ?? 1.0);
+  tr.innerHTML = `
+    <td style="font-family:var(--font-mono);font-size:11px;color:var(--muted);text-align:center;">${n}</td>
+    <td><input class="td-input" value="${name}" placeholder="e.g. HDFC Bank"></td>
+    <td><select class="td-select type-sel" onchange="updateRowBeta(this.closest('tr'))">${getTypeOptions(type)}</select></td>
+    <td><input class="td-input alloc-input" type="number" min="0" max="100" step="0.1" value="${alloc}" placeholder="%" style="width:70px;" oninput="updateAllocBar()"></td>
+    <td class="beta-display">${betaBadge(effBeta)}</td>
+    <td><input class="td-input custom-beta" type="number" step="0.05" value="${customBeta}" placeholder="auto" style="width:70px;" oninput="updateRowBeta(this.closest('tr'))"></td>
+    <td><button class="del-btn" onclick="this.closest('tr').remove();updateAllocBar();">✕</button></td>
+  `;
+  tbody.appendChild(tr);
+  updateAllocBar();
+}
+
+function loadDefault() {
+  document.getElementById('holdingsBody').innerHTML = '';
+  rowCount = 0;
+  DEFAULT_PORTFOLIO.forEach(h => addRow(h.name, h.type, h.alloc, h.customBeta ?? ''));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ANALYSIS ENGINE
+// ═══════════════════════════════════════════════════════════════
+function fmt(pct, dec=2) { return (pct >= 0 ? '+' : '') + pct.toFixed(dec) + '%'; }
+function fmtINR(val) {
+  if (val == null) return '';
+  const a = Math.abs(val), s = val < 0 ? '−₹' : '₹';
+  if (a >= 1e7) return s + (a/1e7).toFixed(2) + 'Cr';
+  if (a >= 1e5) return s + (a/1e5).toFixed(2) + 'L';
+  return s + a.toLocaleString('en-IN');
+}
+
+// Keep last analysis result for download buttons
+let lastAnalysis = null;
+
+function runAnalysis() {
+  const errorEl = document.getElementById('errorMsg');
+  errorEl.style.display = 'none';
+
+  const rows = document.querySelectorAll('.holding-row');
+  if (!rows.length) { showError('Add at least one holding.'); return; }
+
+  let holdings = [];
+  rows.forEach(r => {
+    const name  = r.querySelectorAll('input')[0]?.value || 'Unnamed';
+    const type  = r.querySelector('.type-sel')?.value;
+    const alloc = parseFloat(r.querySelector('.alloc-input')?.value) || 0;
+    const beta  = getEffBeta(r);
+    const cat   = ASSET_TYPES[type]?.cat || 'equity';
+    holdings.push({ name, type, alloc, beta, cat });
+  });
+
+  const totalAlloc = holdings.reduce((s, h) => s + h.alloc, 0);
+  if (totalAlloc < 5) { showError('Please enter allocations that sum to at least 5%.'); return; }
+
+  // Normalise
+  holdings = holdings.map(h => ({ ...h, w: h.alloc / totalAlloc }));
+
+  const portBeta  = holdings.reduce((s, h) => s + h.w * h.beta, 0);
+  const equityPct = holdings.filter(h=>h.cat==='equity').reduce((s,h)=>s+h.alloc,0) / totalAlloc * 100;
+  const debtPct   = holdings.filter(h=>h.cat==='debt').reduce((s,h)=>s+h.alloc,0)   / totalAlloc * 100;
+  const goldPct   = holdings.filter(h=>h.cat==='gold').reduce((s,h)=>s+h.alloc,0)   / totalAlloc * 100;
+  const cashPct   = holdings.filter(h=>h.cat==='cash').reduce((s,h)=>s+h.alloc,0)   / totalAlloc * 100;
+  const top3Conc  = [...holdings].sort((a,b)=>b.alloc-a.alloc).slice(0,3).reduce((s,h)=>s+h.alloc,0) / totalAlloc * 100;
+  const portValue = parseFloat(document.getElementById('portfolioValue').value) || null;
+
+  lastAnalysis = { holdings, portBeta, portValue };
+
+  // Show & animate
+  const results = document.getElementById('resultsSection');
+  results.style.display = 'block';
+  setTimeout(() => results.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+
+  let prog = 0;
+  const bar = document.getElementById('loadingFill');
+  const t = setInterval(() => { prog = Math.min(prog + 10, 95); bar.style.width = prog + '%'; }, 40);
+  setTimeout(() => { clearInterval(t); bar.style.width = '100%'; }, 500);
+
+  // ── Metrics tiles ──
+  const betaCls = portBeta > 1.2 ? 'red' : portBeta > 0.9 ? 'amber' : 'green';
+  document.getElementById('metricsStrip').innerHTML = `
+    <div class="tile ${betaCls}">
+      <div class="tile-label">Portfolio Beta (β)</div>
+      <div class="tile-value">${portBeta.toFixed(3)}</div>
+      <div class="tile-status">${portBeta>1.1?'HIGH':portBeta>0.8?'MODERATE':'LOW'}</div>
+      <div class="tile-sub">${portBeta>1.1?'High Nifty sensitivity':portBeta>0.8?'Moderate':'Low sensitivity'}</div>
+    </div>
+    <div class="tile blue">
+      <div class="tile-label">Equity Exposure</div>
+      <div class="tile-value">${equityPct.toFixed(1)}%</div>
+      <div class="tile-status">STOCKS</div>
+      <div class="tile-sub">ETFs, funds, direct stocks</div>
+    </div>
+    <div class="tile ${debtPct>=15?'green':'amber'}">
+      <div class="tile-label">Debt / Liquid</div>
+      <div class="tile-value">${debtPct.toFixed(1)}%</div>
+      <div class="tile-status">${debtPct>=15?'OK':'LOW'}</div>
+      <div class="tile-sub">${debtPct<15?'Below recommended 20%':'Within safe range'}</div>
+    </div>
+    <div class="tile ${goldPct>=8?'green':'amber'}">
+      <div class="tile-label">Gold / Hedge</div>
+      <div class="tile-value">${goldPct.toFixed(1)}%</div>
+      <div class="tile-status">${goldPct>=8?'OK':'LOW'}</div>
+      <div class="tile-sub">${goldPct<8?'Below recommended 10%':'Good hedge layer'}</div>
+    </div>
+    <div class="tile ${top3Conc>60?'red':top3Conc>40?'amber':'green'}">
+      <div class="tile-label">Top-3 Concentration</div>
+      <div class="tile-value">${top3Conc.toFixed(1)}%</div>
+      <div class="tile-status">${top3Conc>60?'HIGH CONC':top3Conc>40?'MODERATE':'DIVERSIFIED'}</div>
+      <div class="tile-sub">${top3Conc>60?'Concentration risk':top3Conc>40?'Moderate risk':'Well spread'}</div>
+    </div>
+  `;
+
+  // ── Crash cards ──
+  const crashes = [
+    { label:"⚡ Mild (10–15%)",         dd:-12.0 },
+    { label:"🌩 Major (25–40%)",        dd:-30.0 },
+    { label:"💀 Severe — 2008 (60%)",   dd:-59.86 },
+  ];
+  document.getElementById('crashGrid').innerHTML = crashes.map(cs => {
+    const portLoss = cs.dd * portBeta;
+    const portLossINR = portValue ? portLoss / 100 * portValue : null;
+    const bestHedgePnL = Math.max(...STRATS.map(s => {
+      const avg = s.betaScale ? s.avgPnl * portBeta : s.avgPnl;
+      return avg;
+    }));
+    // Net cannot be positive — the hedge offsets loss, it doesn't generate profit
+    const bestNet = Math.min(portLoss + bestHedgePnL, 0);
+    const offsetPct = Math.min((bestHedgePnL / Math.abs(portLoss)) * 100, 100).toFixed(0);
+    const recov = cs.dd < -40 ? '~2–3 yrs' : cs.dd < -20 ? '~1–2 yrs' : '~3–12 mo';
+    return `<div class="crash-card">
+      <div class="crash-card-title">${cs.label} Crash</div>
+      <div class="crash-row"><span class="crash-lbl">Nifty falls</span><span class="crash-val loss">${cs.dd.toFixed(1)}%</span></div>
+      <div class="crash-row"><span class="crash-lbl">Your portfolio</span><span class="crash-val loss">${portLoss.toFixed(1)}%${portLossINR?` (${fmtINR(portLossINR)})`:''}</span></div>
+      <div class="crash-row"><span class="crash-lbl">Net (best hedge)</span><span class="crash-val ${bestNet>=-2?'gain':'loss'}">${bestNet.toFixed(1)}% (${offsetPct}% offset)</span></div>
+      <div class="crash-row"><span class="crash-lbl">Avg recovery</span><span class="crash-val muted">${recov}</span></div>
+    </div>`;
+  }).join('');
+
+  // ── Scorecard table ──
+  const sorted = [...STRATS].sort((a,b) => b.score - a.score);
+  document.getElementById('scorecardTable').innerHTML = `
+    <thead><tr>
+      <th>Strategy</th>
+      <th style="text-align:center;">Win %</th>
+      <th style="text-align:center;">Avg Gain</th>
+      <th style="text-align:center;">Ann. Drag</th>
+      <th style="text-align:center;">Score</th>
+    </tr></thead>
+    <tbody>${sorted.map((s, i) => {
+      const adjAvg = s.betaScale ? s.avgPnl * portBeta : s.avgPnl;
+      const adjDrag = s.betaScale ? s.drag * 12 * portBeta : s.drag * 12;
+      const rank = i + 1;
+      const badgeCls = rank <= 3 ? `rank-${rank}` : 'rank-n';
+      return `<tr>
+        <td><span class="rank-badge ${badgeCls}">${rank}</span>
+            <span style="font-weight:500;margin-left:8px;">${s.name}</span></td>
+        <td style="text-align:center;font-family:var(--font-mono);font-weight:600;">${s.wr}%</td>
+        <td style="text-align:center;font-family:var(--font-mono);font-weight:600;color:var(--green);">+${adjAvg.toFixed(1)}%</td>
+        <td style="text-align:center;font-family:var(--font-mono);color:var(--amber);">${adjDrag.toFixed(1)}%/yr</td>
+        <td style="text-align:center;font-family:var(--font-mono);font-weight:700;">${s.score}</td>
+      </tr>`;
+    }).join('')}</tbody>`;
+
+  // ── Strategy cards (top 4) ──
+  document.getElementById('stratCards').innerHTML = sorted.slice(0,4).map((s, i) => {
+    const adjAvg  = s.betaScale ? s.avgPnl * portBeta : s.avgPnl;
+    const adjWorst= s.betaScale ? s.worst  * portBeta : s.worst;
+    const adjBest = s.betaScale ? s.best   * portBeta : s.best;
+    const adjDrag = s.betaScale ? s.drag   * portBeta : s.drag;
+    const pnlExtra = portValue ? ` (${fmtINR(portValue * adjAvg / 100)})` : '';
+    const trigCls = s.trigger === 'a' ? 'trigger-a' : s.trigger === 'b' ? 'trigger-b' : 'trigger-c';
+    return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);padding:12px 14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">#${i+1}</div>
+          <div style="font-weight:600;font-size:13px;">${s.name}</div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:var(--primary);">${s.score}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+        <span style="color:var(--muted);">Avg gain</span>
+        <span style="font-family:var(--font-mono);font-weight:600;color:var(--green);">+${adjAvg.toFixed(1)}%${pnlExtra}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+        <span style="color:var(--muted);">Worst / Best</span>
+        <span style="font-family:var(--font-mono);">${adjWorst.toFixed(1)}% / ${adjBest.toFixed(1)}%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px;">
+        <span style="color:var(--muted);">Monthly drag</span>
+        <span style="font-family:var(--font-mono);color:var(--amber);">${adjDrag.toFixed(2)}%</span>
+      </div>
+      <span class="trigger-badge ${trigCls}">${s.trigLabel}</span>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;">${s.note}</div>
+    </div>`;
+  }).join('');
+
+  // ── Scenario table ──
+  const strats = STRATS; // order: S1 S2 S7 S3 S8 S6 S5 S4
+  let thead = `<thead><tr><th class="left">Episode</th><th>Nifty DD</th><th>Your Loss</th>`;
+  strats.forEach(s => { thead += `<th>${s.short} Gain</th><th>Net</th>`; });
+  thead += `</tr></thead>`;
+  let tbody2 = '<tbody>';
+  EPISODES.forEach(ep => {
+    const portLoss = ep.dd * portBeta;
+    const isOngoing = ep.rec === null;
+    let tr = `<tr>
+      <td class="ep-name">${ep.ep}${isOngoing?' 🔴':''}</td>
+      <td class="cell-loss">${ep.dd.toFixed(1)}%</td>
+      <td class="cell-loss">${portLoss.toFixed(1)}%</td>`;
+    strats.forEach((s, i) => {
+      const raw = ep.pnl[i];
+      if (raw == null) {
+        tr += `<td style="color:var(--muted);">—</td><td style="color:var(--muted);">—</td>`;
+      } else {
+        const gain = s.betaScale ? raw * portBeta : raw;
+        const net  = portLoss + gain;
+        tr += `<td class="${gain>=0?'cell-gain':'cell-loss'}">${fmt(gain,1)}</td>`;
+        tr += `<td class="${net>=-5?'cell-gain':'cell-loss'}">${fmt(net,1)}</td>`;
+      }
+    });
+    tr += '</tr>';
+    tbody2 += tr;
+  });
+  tbody2 += '</tbody>';
+  document.getElementById('scenarioTable').innerHTML = thead + tbody2;
+
+  // ── Playbook ──
+  // Use live VIX if available (fetched from /api/live on page load), else fall back to avg trigger value of 20
+  const liveVix = window._liveVix || 20;
+  const liveDDSignal = window._liveDDSignal || 2;
+  const modelAlloc = Math.min(90, Math.max(10, Math.round(
+    12.5 + 0.52 * liveVix + 0.48 * liveDDSignal + 5.10 * (liveVix * liveDDSignal / 100)
+  )));
+  const niftyNotional = portValue ? ` = ${fmtINR(portValue * portBeta)}` : '';
+  const stratBAlloc = portValue ? ` (${fmtINR(portValue * portBeta * modelAlloc / 100)})` : '';
+
+  document.getElementById('playbookGrid').innerHTML = `
+    <div class="pb-card">
+      <div class="pb-header">
+        <div class="pb-letter a">A</div>
+        <div><div class="pb-title">Always-On Core Defence</div><div class="pb-subtitle">Conservative · No trigger required</div></div>
+      </div>
+      <div class="pb-body">
+        <div class="pb-row"><span class="pb-row-lbl">Status</span><span class="pb-row-val green">✅ Deploy Now</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Action</span><span class="pb-row-val">≥20% Liquid Debt + 10% Gold</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Your Debt</span><span class="pb-row-val ${debtPct<15?'amber':''}">${debtPct.toFixed(1)}% ${debtPct<15?'⚠ Add more':''}</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Your Gold</span><span class="pb-row-val ${goldPct<7?'amber':''}">${goldPct.toFixed(1)}% ${goldPct<7?'⚠ Add more':''}</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Beta after A</span><span class="pb-row-val">~${(portBeta*0.70).toFixed(2)} (−30% eff. β)</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Annual Drag</span><span class="pb-row-val">~0.15–0.30%</span></div>
+      </div>
+    </div>
+    <div class="pb-card">
+      <div class="pb-header">
+        <div class="pb-letter b">B</div>
+        <div><div class="pb-title">Tactical ATM Put Hedge</div><div class="pb-subtitle">VIX > 20 · 2-of-3 signals active</div></div>
+      </div>
+      <div class="pb-body">
+        <div class="pb-row"><span class="pb-row-lbl">Trigger</span><span class="pb-row-val amber">2-of-3: VIX / DMA / FPI</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Nifty Notional</span><span class="pb-row-val">${(portBeta*100).toFixed(0)}% of portfolio${niftyNotional}</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Model Alloc</span><span class="pb-row-val">${modelAlloc}%${stratBAlloc}</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Instrument</span><span class="pb-row-val">ATM Nifty Put · 1-month expiry</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Exit</span><span class="pb-row-val">Nifty above 100-DMA 3d / VIX &lt; 15</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Monthly Cost</span><span class="pb-row-val">~${(1.20*portBeta).toFixed(2)}%${portValue?` (${fmtINR(portValue*1.20*portBeta/100)}/mo)`:''}</span></div>
+      </div>
+    </div>
+    <div class="pb-card">
+      <div class="pb-header">
+        <div class="pb-letter c">C</div>
+        <div><div class="pb-title">Crisis — Short Futures</div><div class="pb-subtitle">VIX > 28 · Deploy immediately</div></div>
+      </div>
+      <div class="pb-body">
+        <div class="pb-row"><span class="pb-row-lbl">Trigger</span><span class="pb-row-val" style="color:var(--red);">VIX > 28 · Crisis mode</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Action</span><span class="pb-row-val">Short Nifty Futures</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Notional</span><span class="pb-row-val">${(portBeta*100).toFixed(0)}% portfolio${niftyNotional}</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Margin Needed</span><span class="pb-row-val">${portValue?fmtINR(portValue*portBeta*0.25):'25% of notional'}</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Limit</span><span class="pb-row-val">Never > 75% notional short</span></div>
+        <div class="pb-row"><span class="pb-row-lbl">Requires</span><span class="pb-row-val">F&O enabled account</span></div>
+      </div>
+    </div>
+  `;
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DOWNLOAD FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+function getHoldingsPayload() {
+  if (!lastAnalysis) return null;
+  return {
+    holdings: lastAnalysis.holdings.map(h => ({
+      name: h.name, type: h.type, alloc: h.alloc, beta: h.beta, cat: h.cat
+    })),
+    portfolio_value: lastAnalysis.portValue || null
+  };
+}
+
+async function downloadExcel() {
+  const btn = document.getElementById('btnExcel');
+  const status = document.getElementById('dlStatus');
+  const payload = getHoldingsPayload();
+  if (!payload) { status.textContent = 'Run analysis first.'; return; }
+
+  btn.disabled = true; btn.textContent = '⏳ Generating…';
+  status.textContent = 'Calling Python engine…';
+  try {
+    const resp = await fetch('/api/generate-excel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      let errMsg = errorText;
+      try {
+        const err = JSON.parse(errorText);
+        errMsg = err.error || err.message || errorText;
+      } catch (_e) {
+        errMsg = errorText;
+      }
+      throw new Error(errMsg || `Server error ${resp.status}`);
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'Institutional_Hedge_Report.xlsx'; a.click();
+    URL.revokeObjectURL(url);
+    status.textContent = '✅ Excel downloaded successfully.';
+  } catch(e) {
+    status.textContent = `❌ ${e.message}`;
+  } finally {
+    btn.disabled = false; btn.textContent = '⬇ Download Excel Report (.xlsx)';
+  }
+}
+
+async function downloadWord() {
+  const btn = document.getElementById('btnWord');
+  const status = document.getElementById('dlStatus');
+  const payload = getHoldingsPayload();
+  if (!payload) { status.textContent = 'Run analysis first.'; return; }
+
+  btn.disabled = true; btn.textContent = '⏳ Generating…';
+  status.textContent = 'Calling Python engine…';
+  try {
+    const resp = await fetch('/api/generate-word', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      let errMsg = errorText;
+      try {
+        const err = JSON.parse(errorText);
+        errMsg = err.error || err.message || errorText;
+      } catch (_e) { errMsg = errorText; }
+      throw new Error(errMsg || `Server error ${resp.status}`);
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; 
+    a.download = 'Institutional_Hedge_Report.docx'; 
+    a.click();
+    URL.revokeObjectURL(url);
+    status.textContent = '✅ Word report downloaded successfully.';
+  } catch(e) {
+    status.textContent = `❌ ${e.message}`;
+  } finally {
+    btn.disabled = false; btn.textContent = '⬇ Download Word Report (.docx)';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+loadDefault();
+
+// Fetch live VIX and DMA gap from the backend cache so the playbook
+// model allocation uses real market data rather than static trigger values.
+window._liveVix     = 20;   // fallback
+window._liveDDSignal = 2;   // fallback
+(async () => {
+  try {
+    const resp = await fetch('/api/live', { cache: 'no-cache' });
+    if (!resp.ok) return;
+    const json = await resp.json();
+    const d = json?.data;
+    if (d) {
+      if (d.vix     != null) window._liveVix      = d.vix;
+      if (d.dmaGap  != null) window._liveDDSignal = Math.max(0, -d.dmaGap);
+    }
+  } catch {}
+})();
+</script>
+</body>
+</html>
