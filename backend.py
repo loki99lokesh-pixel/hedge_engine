@@ -9,6 +9,19 @@ import requests
 import yfinance as yf
 from flask import Flask, jsonify, send_from_directory, request, send_file, Response
 
+import yfinance as yf
+from flask import Flask, jsonify, send_from_directory, request, send_file, Response
+
+import portfolio_hedge_engine as phe
+
+# --- ADD THIS DISGUISE BLOCK ---
+# Tricks Yahoo Finance into thinking this server is a normal Chrome browser
+yf_session = requests.Session()
+yf_session.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+})
+# -------------------------------
+
 import portfolio_hedge_engine as phe
 
 app = Flask(__name__, static_folder='.', static_url_path='')
@@ -33,7 +46,7 @@ def get_dynamic_jan1_baseline():
     current_year = datetime.now().year
     try:
         df = yf.download('^NSEI', start=f'{current_year}-01-01', end=f'{current_year}-01-08',
-                         progress=False, threads=False)
+                         progress=False, threads=False, session=yf_session)
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
         close_col = 'Close' if 'Close' in df.columns else df.columns[-1]
@@ -54,7 +67,7 @@ CACHE_LOCK = threading.Lock()
 # DATA FETCHERS
 # ══════════════════════════════════════════════════════════════
 def attempt_yf(symbol, name):
-    df = yf.download(symbol, period='2d', interval='1d', progress=False, threads=False)
+    df = yf.download(symbol, period='2d', interval='1d', progress=False, threads=False, session=yf_session)
     if df.empty:
         raise ValueError(f"yfinance returned empty for {name}")
     if isinstance(df.columns, pd.MultiIndex):
@@ -79,7 +92,7 @@ def attempt_stooq(symbol, name):
 
 def get_nifty_live_and_dma() -> tuple:
     global LKG_DMA
-    df = yf.download('^NSEI', period='1y', interval='1d', progress=False, threads=False)
+    df = yf.download('^NSEI', period='1y', interval='1d', progress=False, threads=False, session=yf_session)
     if df.empty:
         raise ValueError('No yfinance history for ^NSEI')
     if isinstance(df.columns, pd.MultiIndex):
