@@ -14,16 +14,6 @@ from flask import Flask, jsonify, send_from_directory, request, send_file, Respo
 
 import portfolio_hedge_engine as phe
 
-# --- ADD THIS DISGUISE BLOCK ---
-# Tricks Yahoo Finance into thinking this server is a normal Chrome browser
-yf_session = requests.Session()
-yf_session.headers.update({
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-})
-# -------------------------------
-
-import portfolio_hedge_engine as phe
-
 app = Flask(__name__, static_folder='.', static_url_path='')
 
 try:
@@ -46,7 +36,7 @@ def get_dynamic_jan1_baseline():
     current_year = datetime.now().year
     try:
         df = yf.download('^NSEI', start=f'{current_year}-01-01', end=f'{current_year}-01-08',
-                         progress=False, threads=False, session=yf_session)
+                         progress=False, threads=False)
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
         close_col = 'Close' if 'Close' in df.columns else df.columns[-1]
@@ -66,121 +56,123 @@ CACHE_LOCK = threading.Lock()
 # ══════════════════════════════════════════════════════════════
 # DATA FETCHERS
 # ══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
+# ROBUST DATA FETCHERS (STOOQ PRIMARY + YFINANCE FALLBACK)
+# ══════════════════════════════════════════════════════════════
 def attempt_yf(symbol, name):
-    df = yf.download(symbol, period='2d', interval='1d', progress=False, threads=False, session=yf_session)
+    # Disguise removed. We let yfinance use its native curl_cffi bypass.
+    df = yf.download(symbol, period='1d', interval='1d', progress=False, threads=False)
     if df.empty:
         raise ValueError(f"yfinance returned empty for {name}")
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     close_col = 'Close' if 'Close' in df.columns else df.columns[-1]
-    return float(df[close_col].dropna().iloc[-1])
+    return float(df[close_col].iloc[-1])
 
 def attempt_stooq(symbol, name):
     url = f"https://stooq.com/q/l/?s={symbol}&f=sd2t2ohlcv&h&e=csv"
     headers = {'User-Agent': 'Mozilla/5.0'}
-    response = requests.get(url, headers=headers, timeout=8)
+    response = requests.get(url, headers=headers, timeout=5)
     response.raise_for_status()
     lines = response.text.strip().split('\n')
     if len(lines) < 2:
         raise ValueError(f"Stooq returned no data rows for {name}")
     cols = lines[1].split(',')
-    # Stooq CSV: Symbol,Date,Time,Open,High,Low,Close,Volume
-    val = float(cols[6] if len(cols) >= 8 else cols[5])
+    raw_val = cols[5] if len(cols) >= 6 else cols[-1]
+    
+    # Gracefully handle the N/D (No Data) string during weekends/holidays
+    if raw_val.strip() == 'N/D':
+        raise ValueError(f"Stooq returned N/D for {name}, shifting to fallback.")
+        
+    val = float(raw_val)
     if val <= 0:
         raise ValueError(f"Stooq returned invalid value {val} for {name}")
     return val
 
-def get_nifty_live_and_dma() -> tuple:
+def get_dma_only() -> float:
+    """Fetches 1 year of history specifically for the 100-DMA calculation."""
     global LKG_DMA
-    df = yf.download('^NSEI', period='1y', interval='1d', progress=False, threads=False, session=yf_session)
+    df = yf.download('^NSEI', period='1y', interval='1d', progress=False, threads=False)
     if df.empty:
         raise ValueError('No yfinance history for ^NSEI')
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     close_col = 'Close' if 'Close' in df.columns else df.columns[-1]
-    series = df[close_col].dropna()
-    close = float(series.iloc[-1])
-    dma_100 = float(series.rolling(window=100).mean().iloc[-1])
-    if pd.isna(close) or pd.isna(dma_100):
-        raise ValueError('Calculated Nifty or DMA is NaN')
+    
+    # Calculate DMA and update Last Known Good memory
+    dma_100 = float(df[close_col].dropna().rolling(window=100).mean().iloc[-1])
+    if pd.isna(dma_100):
+         raise ValueError('Calculated DMA is NaN')
+         
     LKG_DMA = dma_100
-    return close, dma_100
+    return dma_100
 
 def fetch_live_data():
     data = {}
     sources = {}
 
+    # 1. NIFTY LIVE PRICE (Stooq Primary -> yfinance Fallback)
     try:
-        nifty_close, dynamic_dma = get_nifty_live_and_dma()
-        data['nifty'] = nifty_close
-        sources['nifty'] = 'yfinance'
+        data['nifty'] = attempt_stooq('^nsei', 'nifty')
+        sources['nifty'] = 'stooq'
     except Exception as e:
-        print(f"Nifty primary fetch failed: {e}")
-        try:
-            data['nifty'] = attempt_stooq('^nsei', 'nifty')
-            sources['nifty'] = 'stooq_fallback'
-        except Exception as e2:
-            print(f"Nifty stooq fallback failed: {e2}")
-            data['nifty'] = 24386
-            sources['nifty'] = 'static_fallback'
+        print(f"Stooq Nifty failed: {e}")
+        data['nifty'] = attempt_yf('^NSEI', 'nifty')
+        sources['nifty'] = 'yfinance_fallback'
+
+    # 2. NIFTY 100-DMA (yfinance background -> LKG Memory Fallback)
+    try:
+        dynamic_dma = get_dma_only()
+    except Exception as e:
+        print(f"DMA math failed, using LKG: {e}")
         dynamic_dma = LKG_DMA
 
+    # 3. INDIA VIX (Stooq Primary -> yfinance Fallback)
     try:
+        data['vix'] = attempt_stooq('^indiavix', 'vix')
+        sources['vix'] = 'stooq'
+    except Exception:
         data['vix'] = attempt_yf('^INDIAVIX', 'vix')
-        sources['vix'] = 'yfinance'
+        sources['vix'] = 'yfinance_fallback'
+
+    # 4. USD/INR (Frankfurter Primary -> yfinance Fallback)
+    try:
+        res = requests.get('https://api.frankfurter.app/latest?from=USD&to=INR', timeout=5).json()
+        data['usdinr'] = res['rates']['INR']
+        sources['usdinr'] = 'frankfurter'
     except Exception:
         try:
-            data['vix'] = attempt_stooq('^ind.vix', 'vix')
-            sources['vix'] = 'stooq_fallback'
+            data['usdinr'] = attempt_yf('INR=X', 'usdinr')
+            sources['usdinr'] = 'yfinance_fallback'
         except Exception:
-            data['vix'] = 17.9
-            sources['vix'] = 'static_fallback'
+            data['usdinr'] = 84.50
 
+    # 5. GOLD (Stooq Primary -> yfinance Fallback)
     try:
-        data['usdinr'] = attempt_yf('USDINR=X', 'usdinr')
-        sources['usdinr'] = 'yfinance'
+        data['goldUSD'] = attempt_stooq('xauusd', 'goldUSD')
+        sources['goldUSD'] = 'stooq'
     except Exception:
-        try:
-            res = requests.get('https://api.frankfurter.app/latest?from=USD&to=INR', timeout=8).json()
-            data['usdinr'] = res['rates']['INR']
-            sources['usdinr'] = 'frankfurter'
-        except Exception:
-            try:
-                res = requests.get('https://open.er-api.com/v6/latest/USD', timeout=8).json()
-                data['usdinr'] = res['rates']['INR']
-                sources['usdinr'] = 'erapi'
-            except Exception:
-                data['usdinr'] = 84.50
-                sources['usdinr'] = 'static_fallback'
-
-    try:
         data['goldUSD'] = attempt_yf('GC=F', 'goldUSD')
-        sources['goldUSD'] = 'yfinance'
-    except Exception:
-        try:
-            data['goldUSD'] = attempt_stooq('xauusd', 'goldUSD')
-            sources['goldUSD'] = 'stooq_fallback'
-        except Exception:
-            data['goldUSD'] = 3295
-            sources['goldUSD'] = 'static_fallback'
+        sources['goldUSD'] = 'yfinance_fallback'
 
+    # 6. BRENT CRUDE (Stooq Primary -> yfinance Fallback)
     try:
-        data['brent'] = attempt_yf('BZ=F', 'brent')
-        sources['brent'] = 'yfinance'
+        data['brent'] = attempt_stooq('cb.f', 'brent')
+        sources['brent'] = 'stooq'
     except Exception:
-        try:
-            data['brent'] = attempt_stooq('cb.f', 'brent')
-            sources['brent'] = 'stooq_fallback'
-        except Exception:
-            data['brent'] = 65.0
-            sources['brent'] = 'static_fallback'
+        data['brent'] = attempt_yf('BZ=F', 'brent')
+        sources['brent'] = 'yfinance_fallback'
 
+    # Final Calculations
     data['goldINR'] = round(data['goldUSD'] * data['usdinr'] / 31.1035, 2)
     data['ytd'] = round(((data['nifty'] / NIFTY_JAN1) - 1) * 100, 2)
     data['dmaGap'] = round(((data['nifty'] / dynamic_dma) - 1) * 100, 2)
     data['dma_used'] = round(dynamic_dma, 2)
-    data['timestamp'] = datetime.now(timezone.utc).isoformat()
+    
+    from datetime import datetime, timezone
+    data['timestamp'] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     data['sources'] = sources
+
     return data
 
 def update_cache_loop():
