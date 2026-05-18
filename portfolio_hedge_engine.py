@@ -63,34 +63,102 @@ def fetch_live_nifty_status():
         return None
 
 # ══════════════════════════════════════════════════════════════
-# DEFAULT BETA MAP  (used if user doesn't specify per holding)
+# BETA MATRIX — Sector × Market Cap (NSE historical, 2005-2025)
+# Each cell: (mid, low, high)  — mid is the point estimate used
+# Non-equity asset types use flat lookup below
 # ══════════════════════════════════════════════════════════════
-BETA_DEFAULTS = {
-    "nifty_etf"         : 1.00,
-    "large_cap_stock"   : 1.05,
-    "mid_cap_stock"     : 1.35,
-    "small_cap_stock"   : 1.55,
-    "multi_cap_fund"    : 1.10,
-    "flexi_cap_fund"    : 1.05,
-    "sectoral_it"       : 1.20,
-    "sectoral_banking"  : 1.15,
-    "sectoral_pharma"   : 0.80,
-    "sectoral_fmcg"     : 0.70,
-    "sectoral_auto"     : 1.25,
-    "sectoral_infra"    : 1.30,
-    "sectoral_realty"   : 1.45,
-    "sectoral_metals"   : 1.40,
-    "debt_liquid"       : 0.05,
-    "debt_shortterm"    : 0.08,
-    "debt_gilt"         : 0.12,
-    "gold_etf_sgb"      : -0.20,
-    "gold_fund"         : -0.18,
-    "reit_invit"        : 0.55,
-    "international_fund": 0.35,
-    "us_tech_fund"      : 0.30,
-    "cash_fd"           : 0.00,
-    "pms_aif"           : 1.10,
+BETA_MATRIX = {
+    # sector       : { cap   : (mid,  low,  high) }
+    "banking"      : { "large":(1.15, 0.95, 1.35), "mid":(1.35, 1.10, 1.60), "small":(1.55, 1.25, 1.80), "micro":(1.65, 1.35, 1.95) },
+    "it"           : { "large":(1.10, 0.90, 1.30), "mid":(1.30, 1.05, 1.55), "small":(1.50, 1.20, 1.75), "micro":(1.60, 1.30, 1.90) },
+    "fmcg"         : { "large":(0.70, 0.55, 0.85), "mid":(0.85, 0.65, 1.05), "small":(1.00, 0.75, 1.25), "micro":(1.10, 0.85, 1.35) },
+    "pharma"       : { "large":(0.75, 0.60, 0.90), "mid":(0.90, 0.70, 1.10), "small":(1.10, 0.85, 1.35), "micro":(1.20, 0.90, 1.50) },
+    "auto"         : { "large":(1.10, 0.90, 1.30), "mid":(1.30, 1.05, 1.55), "small":(1.50, 1.20, 1.75), "micro":(1.60, 1.30, 1.90) },
+    "infra"        : { "large":(1.20, 1.00, 1.40), "mid":(1.45, 1.15, 1.70), "small":(1.65, 1.35, 1.90), "micro":(1.75, 1.45, 2.00) },
+    "metals"       : { "large":(1.25, 1.05, 1.50), "mid":(1.50, 1.20, 1.75), "small":(1.70, 1.40, 2.00), "micro":(1.80, 1.50, 2.10) },
+    "energy"       : { "large":(0.95, 0.75, 1.15), "mid":(1.15, 0.90, 1.40), "small":(1.35, 1.05, 1.65), "micro":(1.45, 1.15, 1.75) },
+    "realty"       : { "large":(1.30, 1.10, 1.55), "mid":(1.55, 1.25, 1.80), "small":(1.75, 1.45, 2.05), "micro":(1.85, 1.55, 2.15) },
+    "conglomerate" : { "large":(1.00, 0.80, 1.20), "mid":(1.20, 0.95, 1.45), "small":(1.40, 1.10, 1.70), "micro":(1.50, 1.20, 1.80) },
+    "multisector"  : { "large":(1.05, 0.85, 1.25), "mid":(1.25, 1.00, 1.50), "small":(1.45, 1.15, 1.75), "micro":(1.55, 1.25, 1.85) },
+    "nifty_index"  : { "large":(1.00, 0.97, 1.03), "mid":(1.00, 0.97, 1.03), "small":(1.00, 0.97, 1.03), "micro":(1.00, 0.97, 1.03) },
 }
+
+# Flat beta lookup for non-equity / special asset classes
+# Each entry: (mid, low, high)
+BETA_FLAT = {
+    "debt_liquid"  : ( 0.05,  0.02,  0.07),
+    "debt_short"   : ( 0.08,  0.05,  0.12),
+    "debt_gilt"    : ( 0.12,  0.08,  0.18),
+    "gold_etf"     : (-0.20, -0.35, -0.05),
+    "gold_fund"    : (-0.18, -0.32, -0.04),
+    "reit_invit"   : ( 0.55,  0.40,  0.70),
+    "intl_fund"    : ( 0.35,  0.20,  0.50),
+    "us_tech"      : ( 0.30,  0.15,  0.45),
+    "cash_fd"      : ( 0.00,  0.00,  0.00),
+    # Legacy keys from old CSV format — kept for backward-compat
+    "nifty_etf"           : (1.00, 0.97, 1.03),
+    "large_cap_stock"     : (1.05, 0.85, 1.25),
+    "mid_cap_stock"       : (1.35, 1.05, 1.65),
+    "small_cap_stock"     : (1.55, 1.25, 1.85),
+    "multi_cap_fund"      : (1.10, 0.88, 1.32),
+    "flexi_cap_fund"      : (1.05, 0.85, 1.25),
+    "sectoral_it"         : (1.20, 0.98, 1.42),
+    "sectoral_banking"    : (1.15, 0.95, 1.35),
+    "sectoral_pharma"     : (0.80, 0.62, 0.98),
+    "sectoral_fmcg"       : (0.70, 0.55, 0.85),
+    "sectoral_auto"       : (1.25, 1.00, 1.50),
+    "sectoral_infra"      : (1.30, 1.05, 1.55),
+    "sectoral_realty"     : (1.45, 1.18, 1.72),
+    "sectoral_metals"     : (1.40, 1.12, 1.68),
+    "debt_shortterm"      : (0.08, 0.05, 0.12),
+    "debt_liquid"         : (0.05, 0.02, 0.07),
+    "debt_shortterm"      : (0.08, 0.05, 0.12),
+    "gold_etf_sgb"        : (-0.20, -0.35, -0.05),
+    "gold_fund"           : (-0.18, -0.32, -0.04),
+    "international_fund"  : (0.35, 0.20, 0.50),
+    "us_tech_fund"        : (0.30, 0.15, 0.45),
+    "pms_aif"             : (1.10, 0.85, 1.35),
+}
+
+# Keep BETA_DEFAULTS as a simple mid-value dict for any code that still uses it
+BETA_DEFAULTS = {k: v[0] for k, v in BETA_FLAT.items()}
+
+
+def resolve_beta(asset_type: str, sector: str = "", cap: str = "large") -> tuple:
+    """
+    Resolve (mid, low, high) beta for a holding.
+
+    Priority:
+      1. equity_<sector>_<cap> composite key  (from frontend new-schema)
+      2. BETA_MATRIX[sector][cap]             (direct matrix lookup)
+      3. BETA_FLAT[asset_type]                (flat non-equity lookup)
+      4. Fallback (1.0, 0.8, 1.2)
+    """
+    atype = str(asset_type).strip().lower()
+
+    # New composite key from frontend: "equity_banking_large"
+    if atype.startswith("equity_"):
+        parts = atype.split("_", 2)
+        if len(parts) == 3:
+            _, sec, cp = parts
+            row = BETA_MATRIX.get(sec)
+            if row:
+                cell = row.get(cp) or row.get("large")
+                if cell:
+                    return cell  # (mid, low, high)
+
+    # Direct BETA_MATRIX lookup using separate sector/cap args
+    if sector and sector in BETA_MATRIX:
+        cap_key = cap if cap in ("large", "mid", "small", "micro") else "large"
+        cell = BETA_MATRIX[sector].get(cap_key)
+        if cell:
+            return cell
+
+    # Flat lookup (non-equity types + legacy keys)
+    if atype in BETA_FLAT:
+        return BETA_FLAT[atype]
+
+    return (1.00, 0.80, 1.20)  # safe fallback
 
 # ══════════════════════════════════════════════════════════════
 # HEDGE STRATEGY RESULTS FROM BACK-TEST (30yr, v3.1)
@@ -308,23 +376,44 @@ def load_portfolio(path: str) -> pd.DataFrame:
         print(f"  Warning: Allocations sum to {total:.1f}% — normalising to 100%")
         df["Allocation_Pct"] = df["Allocation_Pct"] / total * 100
 
-    def get_beta(row):
+    def get_beta_row(row):
+        """Return (mid, low, high, source) for a holding row."""
+        # 1. Manual override wins
         ov = row.get("Beta_Override", "")
         if ov != "" and not pd.isna(ov):
             try:
-                return float(ov)
-            except:
+                v = float(ov)
+                return v, v, v, "Override"
+            except Exception:
                 pass
-        atype = str(row.get("Asset_Type", "")).strip().lower()
-        return BETA_DEFAULTS.get(atype, 1.00)
+        # 2. Matrix / flat resolution
+        atype  = str(row.get("Asset_Type", "")).strip().lower()
+        sector = str(row.get("Sector", "")).strip().lower().replace(" ", "_").replace("/","_").replace("&","_")
+        cap    = str(row.get("Cap_Tier", "large")).strip().lower()
+        mid, low, high = resolve_beta(atype, sector, cap)
+        # Determine source label
+        if atype.startswith("equity_") or (sector in BETA_MATRIX and atype not in BETA_FLAT):
+            source = "Matrix"
+        elif atype in BETA_FLAT:
+            source = "Flat"
+        else:
+            source = "Default"
+        return mid, low, high, source
 
-    df["Beta"] = df.apply(get_beta, axis=1)
-    df["Weight"] = df["Allocation_Pct"] / 100
-    df["Weighted_Beta"] = df["Weight"] * df["Beta"]
+    beta_data = df.apply(get_beta_row, axis=1, result_type="expand")
+    beta_data.columns = ["Beta", "Beta_Low", "Beta_High", "Beta_Source"]
+    df = pd.concat([df, beta_data], axis=1)
+
+    df["Weight"]       = df["Allocation_Pct"] / 100
+    df["Weighted_Beta"]= df["Weight"] * df["Beta"]
     return df
 
 def compute_portfolio_metrics(df: pd.DataFrame, portfolio_value: float = None):
     portfolio_beta   = df["Weighted_Beta"].sum()
+    # Beta confidence band — weighted sum of each holding's low/high
+    beta_low  = (df["Weight"] * df.get("Beta_Low",  df["Beta"])).sum()
+    beta_high = (df["Weight"] * df.get("Beta_High", df["Beta"])).sum()
+
     equity_weight    = df[df["Beta"] > 0.3]["Weight"].sum()
     hedge_weight     = df[df["Beta"] <= 0]["Weight"].sum()
     debt_weight      = df[(df["Beta"] > 0) & (df["Beta"] < 0.3)]["Weight"].sum()
@@ -332,14 +421,16 @@ def compute_portfolio_metrics(df: pd.DataFrame, portfolio_value: float = None):
     top3_pct         = df.nlargest(3, "Allocation_Pct")["Allocation_Pct"].sum()
 
     metrics = {
-        "portfolio_beta"   : round(portfolio_beta, 3),
-        "equity_weight"    : round(equity_weight * 100, 1),
-        "debt_weight"      : round(debt_weight * 100, 1),
-        "hedge_weight"     : round(hedge_weight * 100, 1), 
+        "portfolio_beta"    : round(portfolio_beta, 3),
+        "beta_low"          : round(beta_low, 3),
+        "beta_high"         : round(beta_high, 3),
+        "equity_weight"     : round(equity_weight * 100, 1),
+        "debt_weight"       : round(debt_weight * 100, 1),
+        "hedge_weight"      : round(hedge_weight * 100, 1),
         "top3_concentration": round(top3_pct, 1),
-        "sector_breakdown" : sector_breakdown,
-        "portfolio_value"  : portfolio_value,
-        "num_holdings"     : len(df),
+        "sector_breakdown"  : sector_breakdown,
+        "portfolio_value"   : portfolio_value,
+        "num_holdings"      : len(df),
     }
     return metrics
 
@@ -469,16 +560,16 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
     ws1.title = "1_Portfolio Holdings"
     ws1.freeze_panes = "A3"
 
-    ws1.merge_cells("A1:H1")
+    ws1.merge_cells("A1:J1")
     t = ws1["A1"]
-    t.value = "PORTFOLIO HEDGE ENGINE — Holdings & Beta Analysis"
+    t.value = "PORTFOLIO HEDGE ENGINE — Holdings & Beta Matrix Analysis"
     t.font  = Font(name="Calibri", bold=True, size=14, color="1E3A5F")
     t.alignment = Alignment(horizontal="left", vertical="center")
     ws1.row_dimensions[1].height = 28
 
     headers = ["#", "Holding Name", "Asset Type", "Sector",
-               "Allocation %", "Beta", "Weighted Beta", "Notes"]
-    col_w   = [4, 30, 22, 18, 14, 9, 15, 35]
+               "Allocation %", "Beta (Mid)", "Beta Low", "Beta High", "Beta Source", "Weighted Beta"]
+    col_w   = [4, 28, 22, 18, 13, 11, 10, 10, 12, 15]
     for j, (h, w) in enumerate(zip(headers, col_w), 1):
         c = ws1.cell(row=2, column=j, value=h)
         _style_header(c)
@@ -486,7 +577,10 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
 
     for i, row in df_portfolio.iterrows():
         r = i + 3
-        beta = row["Beta"]
+        beta       = row["Beta"]
+        beta_low   = row.get("Beta_Low",  beta)
+        beta_high  = row.get("Beta_High", beta)
+        beta_src   = row.get("Beta_Source", "—")
         if beta < 0:
             bg = "E8F5E9"
         elif beta < 0.1:
@@ -495,8 +589,7 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
             bg = "FFFFFF"
 
         data = [i+1, row["Holding_Name"], row["Asset_Type"], row.get("Sector",""),
-                row["Allocation_Pct"], row["Beta"], row["Weighted_Beta"],
-                BETA_DEFAULTS.get(row["Asset_Type"],"Custom β")]
+                row["Allocation_Pct"], beta, beta_low, beta_high, beta_src, row["Weighted_Beta"]]
         for j, val in enumerate(data, 1):
             c = ws1.cell(row=r, column=j, value=val)
             c.font = Font(name="Calibri", size=10)
@@ -506,8 +599,14 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
             _border(c)
             if j == 5:
                 c.number_format = "0.0\"%\""
-            elif j in (6, 7):
+            elif j in (6, 7, 8, 10):
                 c.number_format = "0.00"
+            # Colour the Beta Source cell
+            if j == 9:
+                if str(val) == "Override":
+                    c.font = Font(name="Calibri", size=10, color="D97706", bold=True)
+                elif str(val) == "Matrix":
+                    c.font = Font(name="Calibri", size=10, color="2563EB")
 
     sr = len(df_portfolio) + 5
     ws1.merge_cells(f"A{sr}:B{sr}")
@@ -516,6 +615,8 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
 
     summary_data = [
         ("Portfolio Beta (β)",       f"{metrics['portfolio_beta']:.3f}"),
+        ("Beta Range (low – high)",  f"{metrics.get('beta_low', metrics['portfolio_beta']):.3f} – {metrics.get('beta_high', metrics['portfolio_beta']):.3f}"),
+        ("⚠ Beta Creep Note",       "Mid/small cap betas rise during drawdowns — use Beta High for stress sizing"),
         ("Equity Exposure",          f"{metrics['equity_weight']:.1f}%"),
         ("Debt / Liquid",            f"{metrics['debt_weight']:.1f}%"),
         ("Gold / Inverse Hedge",     f"{metrics['hedge_weight']:.1f}%"),
@@ -527,11 +628,22 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
         row_n = sr + 1 + k
         c1 = ws1.cell(row=row_n, column=1, value=lbl)
         c2 = ws1.cell(row=row_n, column=2, value=val)
-        c1.font = Font(name="Calibri", bold=True, size=10)
-        c2.font = Font(name="Calibri", size=10, color="1E3A5F")
+        # Special styling for beta-related rows
+        if "Range" in lbl:
+            c1.font = Font(name="Calibri", bold=True, size=10, color="2563EB")
+            c2.font = Font(name="Calibri", size=10, color="2563EB")
+        elif "Creep" in lbl:
+            c1.font = Font(name="Calibri", bold=True, size=10, color="D97706")
+            c2.font = Font(name="Calibri", size=10,  color="D97706")
+            c1.fill = PatternFill("solid", fgColor="FFFBEB")
+            c2.fill = PatternFill("solid", fgColor="FFFBEB")
+        else:
+            c1.font = Font(name="Calibri", bold=True, size=10)
+            c2.font = Font(name="Calibri", size=10, color="1E3A5F")
         for c in (c1, c2):
-            c.alignment = Alignment(vertical="center")
+            c.alignment = Alignment(vertical="center", wrap_text=True)
             _border(c)
+        ws1.row_dimensions[row_n].height = 18
 
     # ── Sheet 2: Hedge Sizing Recommendations ────────────────
     ws2 = wb.create_sheet("2_Hedge Recommendations")
@@ -761,6 +873,8 @@ def generate_text_report(metrics, hedge_sizing, scenario_df, output_path, live_n
         "",
         "PORTFOLIO SUMMARY",
         f"  Portfolio Beta (β):       {pb:.3f}",
+        f"  Beta Range (low–high):    {metrics.get('beta_low', pb):.3f} – {metrics.get('beta_high', pb):.3f}",
+        f"  ⚠ Beta Creep: Mid/small cap betas rise in drawdowns — use high-end of range for stress sizing.",
         f"  Equity Exposure:          {metrics['equity_weight']:.1f}%",
         f"  Debt / Liquid:            {metrics['debt_weight']:.1f}%",
         f"  Gold / Inverse Hedge:     {metrics['hedge_weight']:.1f}%",
@@ -769,10 +883,10 @@ def generate_text_report(metrics, hedge_sizing, scenario_df, output_path, live_n
         f"  Portfolio Value:          {fmt_inr(pv) if pv else 'Not provided (% outputs only)'}",
         "",
         "WHAT YOUR BETA MEANS",
-        f"  A 10% Nifty fall  →  ~{10*pb:.1f}% portfolio loss",
-        f"  A 20% Nifty fall  →  ~{20*pb:.1f}% portfolio loss",
-        f"  A 40% Nifty fall  →  ~{40*pb:.1f}% portfolio loss",
-        f"  A 59% Nifty fall  →  ~{min(59*pb,100):.1f}% portfolio loss (2008 worst case)",
+        f"  A 10% Nifty fall  →  ~{10*pb:.1f}% loss  (range {10*metrics.get('beta_low',pb):.1f}% – {10*metrics.get('beta_high',pb):.1f}%)",
+        f"  A 20% Nifty fall  →  ~{20*pb:.1f}% loss  (range {20*metrics.get('beta_low',pb):.1f}% – {20*metrics.get('beta_high',pb):.1f}%)",
+        f"  A 40% Nifty fall  →  ~{40*pb:.1f}% loss  (range {40*metrics.get('beta_low',pb):.1f}% – {40*metrics.get('beta_high',pb):.1f}%)",
+        f"  A 59% Nifty fall  →  ~{min(59*pb,100):.1f}% loss (2008 worst case)",
         "",
         "SECTOR BREAKDOWN",
     ]
@@ -901,6 +1015,10 @@ def generate_docx_report(metrics, hedge_sizing, scenario_df, output_path, live_n
     doc.add_heading('PORTFOLIO SUMMARY', level=1)
     p1 = doc.add_paragraph()
     p1.add_run(f"Portfolio Beta (β): {pb:.3f}\n").bold = True
+    bl = metrics.get('beta_low', pb)
+    bh = metrics.get('beta_high', pb)
+    p1.add_run(f"Beta Range: {bl:.3f} – {bh:.3f}\n").bold = True
+    p1.add_run("⚠ Beta Creep: Mid/small cap betas rise in drawdowns — use the high-end of range for stress sizing.\n")
     p1.add_run(f"Equity Exposure: {metrics.get('equity_weight', 0):.1f}%\n")
     p1.add_run(f"Debt / Liquid: {metrics.get('debt_weight', 0):.1f}%\n")
     p1.add_run(f"Gold / Inverse: {metrics.get('hedge_weight', 0):.1f}%\n")
