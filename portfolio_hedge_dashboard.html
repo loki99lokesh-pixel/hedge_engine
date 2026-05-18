@@ -333,6 +333,7 @@
     .type-sub-row {
       display: flex;
       gap: 4px;
+      align-items: stretch;
     }
 
     .type-sub-row .td-select {
@@ -1432,6 +1433,7 @@
       </div>
 
       <button class="add-row-btn" onclick="addRow()">+ Add Holding</button>
+      <button class="add-row-btn" style="color: var(--red); border-color: rgba(239, 68, 68, 0.3); background: transparent; margin-left: 12px;" onclick="clearAllHoldings()">Clear All</button>
 
       <div class="analyse-row">
         <div class="field-group">
@@ -1655,19 +1657,22 @@
     // ═══════════════════════════════════════════════════════════════
 
     function getAssetClassOptions(selected) {
-      return Object.entries(ASSET_CLASSES).map(([k, v]) =>
+      return `<option value="" disabled ${!selected ? 'selected' : ''}>Select Asset Class</option>` + 
+        Object.entries(ASSET_CLASSES).map(([k, v]) =>
         `<option value="${k}" ${k === selected ? 'selected' : ''}>${v.label}</option>`
       ).join('');
     }
 
     function getSectorOptions(selected) {
-      return Object.entries(EQUITY_SECTORS).map(([k, v]) =>
+      return `<option value="" disabled ${!selected ? 'selected' : ''}>Select Sector</option>` + 
+        Object.entries(EQUITY_SECTORS).map(([k, v]) =>
         `<option value="${k}" ${k === selected ? 'selected' : ''}>${v}</option>`
       ).join('');
     }
 
     function getCapOptions(selected) {
-      return Object.entries(CAP_TIERS).map(([k, v]) =>
+      return `<option value="" disabled ${!selected ? 'selected' : ''}>Select Cap</option>` + 
+        Object.entries(CAP_TIERS).map(([k, v]) =>
         `<option value="${k}" ${k === selected ? 'selected' : ''}>${v}</option>`
       ).join('');
     }
@@ -1735,9 +1740,11 @@
       // Show/hide sector+cap sub-row based on asset class
       const assetClass = row.querySelector('.asset-class-sel')?.value;
       const subRow = row.querySelector('.equity-sub-row');
+      const noEqMsg = row.querySelector('.no-equity-msg');
       if (subRow) {
         const isEquityMatrix = assetClass === 'equity';
         subRow.style.display = isEquityMatrix ? 'flex' : 'none';
+        if (noEqMsg) noEqMsg.style.display = isEquityMatrix ? 'none' : 'block';
       }
 
       updateAllocBar();
@@ -1769,7 +1776,7 @@
     }
 
     let rowCount = 0;
-    function addRow(name = '', assetClass = 'equity', sector = 'multisector', cap = 'large', alloc = '', overrideBeta = '') {
+    function addRow(name = '', assetClass = '', sector = '', cap = '', alloc = '', overrideBeta = '') {
       rowCount++;
       const tbody = document.getElementById('holdingsBody');
       const n = tbody.children.length + 1;
@@ -1814,7 +1821,7 @@
             ${getCapOptions(cap)}
           </select>
         </div>
-        <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono);padding:4px 2px;display:${isEquity ? 'none' : 'block'};">
+        <div class="no-equity-msg" style="font-size:10px;color:var(--muted);font-family:var(--font-mono);padding:4px 2px;display:${isEquity ? 'none' : 'block'};">
           N/A for this asset class
         </div>
       </div>
@@ -1853,6 +1860,12 @@
       ));
     }
 
+    function clearAllHoldings() {
+      document.getElementById('holdingsBody').innerHTML = '';
+      rowCount = 0;
+      updateAllocBar();
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // ANALYSIS ENGINE
     // ═══════════════════════════════════════════════════════════════
@@ -1876,27 +1889,33 @@
       if (!rows.length) { showError('Add at least one holding.'); return; }
 
       let holdings = [];
+      let missingFields = false;
       rows.forEach(r => {
         const name = r.querySelectorAll('input')[0]?.value || 'Unnamed';
-        const assetClass = r.querySelector('.asset-class-sel')?.value || 'equity';
-        const sector = r.querySelector('.sector-sel')?.value || 'multisector';
-        const cap = r.querySelector('.cap-sel')?.value || 'large';
+        const assetClass = r.querySelector('.asset-class-sel')?.value;
+        const sector = r.querySelector('.sector-sel')?.value;
+        const cap = r.querySelector('.cap-sel')?.value;
+
+        if (!assetClass || (assetClass === 'equity' && (!sector || !cap))) {
+          missingFields = true;
+        }
+
         const alloc = parseFloat(r.querySelector('.alloc-input')?.value) || 0;
         const beta = getEffBeta(r);
         const betaInfo = getRowBetaInfo(r);
-        const cat = getAssetCat(assetClass);
-        // type key: for non-equity, use the assetClass key directly;
-        // for equity, build a composite key for the Python engine
+        const cat = getAssetCat(assetClass || 'equity');
         const type = (assetClass === 'equity')
           ? `equity_${sector}_${cap}`
-          : assetClass;
+          : (assetClass || 'equity');
         holdings.push({
           name, type, alloc, beta, cat,
           betaLow: betaInfo.low, betaHigh: betaInfo.high,
           betaSource: betaInfo.source,
-          sector: sector, cap: cap
+          sector: sector || '', cap: cap || ''
         });
       });
+
+      if (missingFields) { showError('Please complete dropdown selections for all holdings.'); return; }
 
       const totalAlloc = holdings.reduce((s, h) => s + h.alloc, 0);
       if (totalAlloc < 5) { showError('Please enter allocations that sum to at least 5%.'); return; }
