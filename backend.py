@@ -197,20 +197,25 @@ def build_portfolio_df(holdings):
     Converts the JSON holdings list from the frontend into a DataFrame
     matching what portfolio_hedge_engine expects.
 
-    Frontend sends: [{name, type, alloc, beta, cat}, ...]
-      name  = display name
-      type  = asset_type key (e.g. 'large_cap_stock')
-      alloc = allocation %
-      beta  = resolved beta value (already computed by frontend JS)
-      cat   = asset category ('equity', 'debt', 'gold', 'intl', 'cash')
+    Frontend now sends (new schema):
+      name        = display name
+      type        = asset_type key  (e.g. 'equity_banking_large' or 'debt_liquid')
+      alloc       = allocation %
+      beta        = resolved beta mid value (computed by frontend JS)
+      betaLow     = beta low bound from matrix (or same as beta for override/flat)
+      betaHigh    = beta high bound from matrix
+      betaSource  = 'matrix' | 'override' | 'flat' | 'default'
+      cat         = asset category ('equity', 'debt', 'gold', 'intl', 'cash')
+      sector      = equity sector key (e.g. 'banking') — empty for non-equity
+      cap         = cap tier key (e.g. 'large') — empty for non-equity
 
     Engine expects columns:
-      Holding_Name, Asset_Type, Allocation_Pct, Beta, Sector,
-      Weight, Weighted_Beta
+      Holding_Name, Asset_Type, Allocation_Pct, Beta, Beta_Low, Beta_High,
+      Beta_Source, Sector, Weight, Weighted_Beta
     """
     df = pd.DataFrame(holdings)
 
-    # Map frontend asset-category ('equity', 'debt', …) to readable sector labels
+    # Readable sector label for non-equity; for equity use the sector key with title-case
     CAT_LABEL = {
         'equity': 'Equity',
         'debt'  : 'Debt / Liquid',
@@ -218,26 +223,59 @@ def build_portfolio_df(holdings):
         'intl'  : 'International',
         'cash'  : 'Cash / FD',
     }
+    SECTOR_LABEL = {
+        'banking': 'Banking / Finance', 'it': 'IT / Tech', 'fmcg': 'FMCG / Consumer',
+        'pharma': 'Pharma', 'auto': 'Auto / EV', 'infra': 'Infra / Capital Goods',
+        'metals': 'Metals / Mining', 'energy': 'Energy / Oil & Gas',
+        'realty': 'Realty', 'conglomerate': 'Conglomerate',
+        'multisector': 'Multi-sector', 'nifty_index': 'Nifty Index',
+    }
 
     df.rename(columns={
-        'name' : 'Holding_Name',
-        'type' : 'Asset_Type',
-        'alloc': 'Allocation_Pct',
-        'beta' : 'Beta',
+        'name'      : 'Holding_Name',
+        'type'      : 'Asset_Type',
+        'alloc'     : 'Allocation_Pct',
+        'beta'      : 'Beta',
+        'betaLow'   : 'Beta_Low',
+        'betaHigh'  : 'Beta_High',
+        'betaSource': 'Beta_Source',
     }, inplace=True)
 
-    # Use readable sector label; fall back to the raw cat value if unknown
-    df['Sector'] = df['cat'].apply(lambda c: CAT_LABEL.get(str(c).lower(), str(c).title()))
-    df.drop(columns=['cat'], inplace=True)
+    # Build readable Sector column: equity rows use sector label, others use cat label
+    def resolve_sector(row):
+        cat = str(row.get('cat', '')).lower()
+        if cat == 'equity':
+            sec = str(row.get('sector', '')).lower()
+            return SECTOR_LABEL.get(sec, sec.replace('_', ' ').title() if sec else 'Equity')
+        return CAT_LABEL.get(cat, cat.title())
 
+    df['Sector'] = df.apply(resolve_sector, axis=1)
+
+    # Drop frontend-only fields no longer needed
+    for col in ['cat', 'sector', 'cap']:
+        if col in df.columns:
+            df.drop(columns=[col], inplace=True)
+
+    # Ensure numeric types
     df['Allocation_Pct'] = pd.to_numeric(df['Allocation_Pct'], errors='coerce').fillna(0)
-    df['Beta'] = pd.to_numeric(df['Beta'], errors='coerce').fillna(1.0)
+    df['Beta']           = pd.to_numeric(df['Beta'],           errors='coerce').fillna(1.0)
+    df['Beta_Low']       = pd.to_numeric(df.get('Beta_Low',  df['Beta']), errors='coerce').fillna(df['Beta'])
+    df['Beta_High']      = pd.to_numeric(df.get('Beta_High', df['Beta']), errors='coerce').fillna(df['Beta'])
+
+    # Normalise beta source label to title-case for Excel display
+    if 'Beta_Source' in df.columns:
+        df['Beta_Source'] = df['Beta_Source'].apply(
+            lambda s: {'matrix':'Matrix','override':'Override','flat':'Flat',
+                       'default':'Default'}.get(str(s).lower(), str(s).title())
+        )
+    else:
+        df['Beta_Source'] = 'Default'
 
     total = df['Allocation_Pct'].sum()
     if total > 0 and abs(total - 100) > 0.5:
         df['Allocation_Pct'] = df['Allocation_Pct'] / total * 100
 
-    df['Weight'] = df['Allocation_Pct'] / 100
+    df['Weight']        = df['Allocation_Pct'] / 100
     df['Weighted_Beta'] = df['Weight'] * df['Beta']
 
     return df
