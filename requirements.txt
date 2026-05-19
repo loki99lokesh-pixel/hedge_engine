@@ -6,3 +6,4 @@ requests
 openpyxl
 python-docx
 gunicorn
+redis
