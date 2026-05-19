@@ -1586,7 +1586,8 @@
   </main>
 
   <footer class="footer">
-    Institutional Risk Engine v3.7 — All 7 issues patched (CRITICAL: PNL matrix & scorecard from actual backtest;
+    Institutional Risk Engine v3.8 — v3.7 + FIX: Scorecard avgPnl/wr/sharpe now computed dynamically from PNL_MATRIX
+    (same trueNet = g − c×rolls formula as heatmap). No more static hardcoded values that diverge from heatmap.
     MEDIUM: FPI weekly signal, 100-DMA harmonised; LOW: 2010 episode corrected, 9 missing episodes added). Dynamic
     signals, fully live tiles, 8-strategy heatmap, simulated-intraday disclosure.<br>
     Data: yfinance (Python backend) · dynamic 100-DMA · 5-min thread-safe cache · Fallbacks: Stooq / Frankfurter /
@@ -1600,20 +1601,58 @@
     // STATIC DATA — All 8 strategies, fully expanded
     // ═══════════════════════════════════════════════════════════
 
-    // FIX #1: All 8 strategies in scorecard
-    // SCORECARD — sourced from actual backtest (hedge_scorecard.csv)
-    // Key corrections: ShortFut avg 24.19→23.34; USDINR WR 61.9→93.8; Gold WR 61.9→68.8;
-    //   Gold rank 7→8, USDINR rank 8→7 (swapped); Collar sharpe updated; Combined avg updated
-    const SCORECARD = [
-      { rank: 1, name: "Short Nifty Futures", wr: 100.0, avgPnl: 23.34, sharpe: 1.59, score: 77.5 },
-      { rank: 2, name: "ATM Protective Put", wr: 100.0, avgPnl: 21.73, sharpe: 1.57, score: 71.6 },
-      { rank: 3, name: "Collar (ATM Put+OTM Call)", wr: 100.0, avgPnl: 23.03, sharpe: 1.67, score: 70.0 },
-      { rank: 4, name: "5% OTM Protective Put", wr: 100.0, avgPnl: 18.01, sharpe: 1.28, score: 65.0 },
-      { rank: 5, name: "Combined (Put+Gold+Debt)", wr: 100.0, avgPnl: 16.83, sharpe: 1.65, score: 63.2 },
-      { rank: 6, name: "Debt Rotation (30%)", wr: 100.0, avgPnl: 7.92, sharpe: 1.63, score: 57.1 },
-      { rank: 7, name: "USD/INR Long (10%)", wr: 93.8, avgPnl: 0.59, sharpe: 0.80, score: 41.8 },
-      { rank: 8, name: "Gold Allocation (15%)", wr: 68.8, avgPnl: 0.90, sharpe: 0.48, score: 38.4 },
+    // SCORECARD_CFG: static metadata only (rank, name, score, stratIndex into PNL_MATRIX columns).
+    // avgPnl, wr, and sharpe are computed dynamically from PNL_MATRIX in buildScorecardStats()
+    // so the scorecard and heatmap always share the same single source of truth.
+    // stratIndex: 0=ShortFut 1=ATM Put 2=Collar 3=5%OTM 4=Combined 5=Debt Rot 6=Gold 7=USDINR
+    const SCORECARD_CFG = [
+      { rank: 1, name: "Short Nifty Futures", score: 77.5, stratIndex: 0 },
+      { rank: 2, name: "ATM Protective Put", score: 71.6, stratIndex: 1 },
+      { rank: 3, name: "Collar (ATM Put+OTM Call)", score: 70.0, stratIndex: 2 },
+      { rank: 4, name: "5% OTM Protective Put", score: 65.0, stratIndex: 3 },
+      { rank: 5, name: "Combined (Put+Gold+Debt)", score: 63.2, stratIndex: 4 },
+      { rank: 6, name: "Debt Rotation (30%)", score: 57.1, stratIndex: 5 },
+      { rank: 7, name: "USD/INR Long (10%)", score: 41.8, stratIndex: 7 },
+      { rank: 8, name: "Gold Allocation (15%)", score: 38.4, stratIndex: 6 },
     ];
+
+    // buildScorecardStats(): derives avgPnl, wr, sharpe from PNL_MATRIX.
+    // Uses IDENTICAL trueNet logic as renderHeatmap: trueNet = v.g - v.c * rolls
+    // where rolls = ceil(dur / 30), dur from EPISODES durLookup.
+    // This guarantees scorecard and heatmap always agree — one source of truth.
+    function buildScorecardStats() {
+      const durLookup = {};
+      EPISODES.forEach(e => { durLookup[e.label] = e.dur; });
+
+      // Collect trueNet values per strategy index
+      const stratVals = Array.from({ length: 8 }, () => []);
+
+      for (const [ep, cells] of Object.entries(PNL_MATRIX)) {
+        const dur = durLookup[ep] ?? 30;
+        const rolls = Math.max(1, Math.ceil(dur / 30));
+        cells.forEach((v, j) => {
+          if (!v || v.n == null) return;
+          const trueNet = v.g - v.c * rolls;
+          stratVals[j].push(trueNet);
+        });
+      }
+
+      // Attach computed stats to each config row
+      return SCORECARD_CFG.map(cfg => {
+        const vals = stratVals[cfg.stratIndex];
+        if (!vals || vals.length === 0) {
+          return { ...cfg, wr: 0, avgPnl: 0, sharpe: 0 };
+        }
+        const avg = vals.reduce((s, x) => s + x, 0) / vals.length;
+        const wr = (vals.filter(x => x > 0).length / vals.length) * 100;
+        const variance = vals.reduce((s, x) => s + (x - avg) ** 2, 0) / vals.length;
+        const std = Math.sqrt(variance) || 1;
+        const sharpe = avg / std;
+        return { ...cfg, wr, avgPnl: avg, sharpe };
+      });
+    }
+
+    // SCORECARD is built below, after EPISODES and PNL_MATRIX are fully defined.
 
     // EPISODES — from drawdown_catalogue.csv. Key fixes:
     //   2010 Euro Debt: DD -27.89→-28.01, Duration 406→410, Recovery 682→684
@@ -1692,6 +1731,11 @@
 
     // FIX #1: All 8 column labels
     const STRAT_SHORT = ["ShortFut", "ATM Put", "Collar", "5%OTM", "Combined", "Debt Rot", "Gold 15%", "USDINR 10%"];
+
+    // SCORECARD built here — EPISODES and PNL_MATRIX are now both in scope.
+    // buildScorecardStats() iterates PNL_MATRIX with the same trueNet = v.g − v.c × rolls
+    // formula used by renderHeatmap, so scorecard and heatmap always share one source of truth.
+    const SCORECARD = buildScorecardStats();
 
     // ═══════════════════════════════════════════════════════════
     // CONSTANTS
@@ -2345,16 +2389,21 @@
     }
 
     // ═══════════════════════════════════════════════════════════
-    // SCORECARD — full 8 strategies with Sharpe column
+    // SCORECARD — dynamically derived from PNL_MATRIX via buildScorecardStats()
+    // avgPnl / wr / sharpe are computed with the same trueNet logic as renderHeatmap.
+    // Color thresholds adjusted to the corrected scale (multi-roll costs deducted).
     // ═══════════════════════════════════════════════════════════
     function renderScorecard() {
       document.getElementById('scorecardBody').innerHTML = SCORECARD.map(s => {
-        const pnlColor = s.avgPnl > 15 ? 'var(--green)' : s.avgPnl > 5 ? 'var(--text)' : 'var(--muted)';
+        // Corrected thresholds: trueNet avg is lower than old single-roll figures.
+        // Green ≥ 10%, normal ≥ 3%, muted below 3%.
+        const pnlColor = s.avgPnl >= 10 ? 'var(--green)' : s.avgPnl >= 3 ? 'var(--text)' : 'var(--muted)';
         return `<tr>
       <td><span class="rank-badge rank-${s.rank <= 3 ? s.rank : 'n'}">${s.rank}</span>
           <span style="font-weight:500;font-family:var(--font-body);margin-left:6px;">${s.name}</span></td>
       <td style="font-family:var(--font-mono);font-weight:600;">${s.wr.toFixed(0)}%</td>
-      <td style="font-family:var(--font-mono);font-weight:600;color:${pnlColor}">${s.avgPnl.toFixed(1)}%</td>
+      <td style="font-family:var(--font-mono);font-weight:600;color:${pnlColor}"
+          title="True net avg across ${s.avgPnl.toFixed ? '' : ''}all episodes (multi-roll cost deducted). Same formula as heatmap.">${s.avgPnl.toFixed(1)}%</td>
       <td style="font-family:var(--font-mono);font-weight:600;color:var(--muted2)">${s.sharpe.toFixed(2)}</td>
       <td style="font-family:var(--font-mono);font-weight:600;">${s.score}</td>
     </tr>`;
@@ -2385,25 +2434,40 @@
       const epKeys = Object.keys(PNL_MATRIX);
       const shorts = epKeys.map(k => k.replace(/^(19|20)(\d\d)\s/, "'$2 "));
 
+      // Build dur lookup from EPISODES so roll count is computed from actual duration.
+      // Roll count = ceil(dur / 30) — number of 1-month contracts needed to cover the episode.
+      // Total cost  = cost per roll × rolls  (v.c is per-roll cost)
+      // True net    = gross gain − total cost (v.n only deducts one roll's cost — incorrect for multi-roll episodes)
+      // The cell value and all tooltip figures use the corrected totals.
+      const durLookup = {};
+      EPISODES.forEach(e => { durLookup[e.label] = e.dur; });
+
       let html = '<thead><tr><th style="text-align:left;"></th>' +
         STRAT_SHORT.map(s => `<th>${s}</th>`).join('') + '</tr></thead><tbody>';
 
       epKeys.forEach((ep, i) => {
+        const dur = durLookup[ep] ?? 30;
+        const rolls = Math.max(1, Math.ceil(dur / 30));
         html += `<tr><td class="row-head">${shorts[i]}</td>` + PNL_MATRIX[ep].map((v, j) => {
           if (!v || v.n == null) return `<td class="hm-cell" style="background:#F3F4F6;color:#9CA3AF;">–</td>`;
-          // j===2 = Collar; net ≈ ShortFutures because OTM call premium ~offsets put cost
+
+          // Recompute cost and net using total rolls
+          const totalCost = v.c * rolls;
+          const trueNet = v.g - totalCost;
+
           const collarNote = j === 2
-            ? `<div style="font-size:9px;color:#FCD34D;margin-top:6px;border-top:1px dashed #4B5563;padding-top:4px;">ℹ Collar: call prem offsets put cost → net cost ≈ 0. Net ≈ Short Futures is correct per backtest formula.</div>`
+            ? `<div style="font-size:9px;color:#FCD34D;margin-top:6px;border-top:1px dashed #4B5563;padding-top:4px;">ℹ Collar: call prem offsets put cost per roll. Total cost = net cost/roll × ${rolls} rolls.</div>`
             : '';
           const tipHtml = (`
         <div style="font-weight:700;border-bottom:1px solid #374151;padding-bottom:4px;margin-bottom:4px;">${ep} | ${STRAT_SHORT[j]}</div>
-        <div style="display:flex;justify-content:space-between;width:170px;margin-bottom:2px;"><span>Gross Gain:</span><span style="color:#A7F3D0">+${v.g.toFixed(1)}%</span></div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Hedge Cost:</span><span style="color:#FECACA">−${v.c.toFixed(1)}%</span></div>
-        <div style="display:flex;justify-content:space-between;border-top:1px dashed #4B5563;padding-top:4px;font-weight:700;"><span>Net P&amp;L:</span><span style="color:${v.n > 0 ? '#10B981' : '#EF4444'}">${v.n > 0 ? '+' : ''}${v.n.toFixed(1)}%</span></div>
-        <div style="font-size:9px;color:#9CA3AF;text-align:right;margin-top:4px;">(${v.r} ${v.r === 1 ? 'Roll' : 'Rolls'})</div>
+        <div style="display:flex;justify-content:space-between;width:190px;margin-bottom:2px;"><span>Gross Gain:</span><span style="color:#A7F3D0">+${v.g.toFixed(1)}%</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span>Cost/Roll:</span><span style="color:#FECACA">−${v.c.toFixed(1)}%</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Total Cost (${rolls} rolls):</span><span style="color:#FECACA">−${totalCost.toFixed(1)}%</span></div>
+        <div style="display:flex;justify-content:space-between;border-top:1px dashed #4B5563;padding-top:4px;font-weight:700;"><span>True Net P&amp;L:</span><span style="color:${trueNet > 0 ? '#10B981' : '#EF4444'}">${trueNet > 0 ? '+' : ''}${trueNet.toFixed(1)}%</span></div>
+        <div style="font-size:9px;color:#9CA3AF;text-align:right;margin-top:4px;">(${rolls} ${rolls === 1 ? 'Roll' : 'Rolls'} · ${dur}d)</div>
         ${collarNote}
       `).replace(/"/g, '&quot;');
-          return `<td class="hm-cell" style="${pnlColorLight(v.n)}" data-tip="${tipHtml}" onmouseover="showTip(event,this)" onmouseout="hideTip()">${v.n.toFixed(0)}</td>`;
+          return `<td class="hm-cell" style="${pnlColorLight(trueNet)}" data-tip="${tipHtml}" onmouseover="showTip(event,this)" onmouseout="hideTip()">${trueNet.toFixed(0)}</td>`;
         }).join('') + '</tr>';
       });
 
