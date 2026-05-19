@@ -99,15 +99,15 @@ STRATEGIES = {
     "S1_ShortFutures": {
         "name"        : "Short Nifty Futures (100%)",
         "short_name"  : "Short Futures",
-        "win_rate"    : 1.00,
-        "avg_pnl_pct" : 23.34,
-        "worst_pct"   : 10.17,
-        "best_pct"    : 59.86,
+        "win_rate"    : 1.000,
+        "avg_pnl_pct" : 22.40,   # trueNet avg over 17 episodes (multi-roll cost deducted)
+        "worst_pct"   : 9.97,
+        "best_pct"    : 58.06,
         "avg_cost_pct": 0.20,
         "monthly_drag": 0.20,
         "liquidity"   : 9,
         "simplicity"  : 8,
-        "score"       : 77.5,
+        "score"       : 76.3,    # recomputed: wr×0.25 + min(avg,25)×1.50 + liq + simp×0.80 + std term
         "requires"    : "Futures account (F&O enabled)",
         "trigger"     : "VIX > 28 (Strategy C)",
         "note"        : "Full offset but unlimited upside sacrifice. Needs 25% margin buffer.",
@@ -116,32 +116,32 @@ STRATEGIES = {
     "S2_ATM_Put": {
         "name"        : "ATM Protective Put",
         "short_name"  : "ATM Put",
-        "win_rate"    : 1.00,
-        "avg_pnl_pct" : 21.73,
-        "worst_pct"   : 8.25,
-        "best_pct"    : 57.33,
+        "win_rate"    : 0.905,   # 90.5% — 2 episodes negative after multi-roll premium cost
+        "avg_pnl_pct" : 12.30,
+        "worst_pct"   : -1.01,  # can go negative in short shallow drawdowns
+        "best_pct"    : 39.33,
         "avg_cost_pct": 1.20,
         "monthly_drag": 1.20,
         "liquidity"   : 7,
         "simplicity"  : 6,
-        "score"       : 71.6,
+        "score"       : 55.8,
         "requires"    : "F&O account",
         "trigger"     : "2-of-3 signals (Strategy B)",
-        "note"        : "Best protection for known catalyst. Cost scales with VIX.",
+        "note"        : "Strong protection for known catalysts. Cost scales with VIX; not always positive in shallow drawdowns.",
         "beta_scale"  : True,
     },
     "S3_OTM5_Put": {
         "name"        : "5% OTM Protective Put",
         "short_name"  : "5% OTM Put",
-        "win_rate"    : 1.00,
-        "avg_pnl_pct" : 18.01,
-        "worst_pct"   : 3.25,
-        "best_pct"    : 54.06,
+        "win_rate"    : 0.952,   # 95.2%
+        "avg_pnl_pct" : 10.94,
+        "worst_pct"   : -0.07,
+        "best_pct"    : 40.56,
         "avg_cost_pct": 0.70,
         "monthly_drag": 0.70,
         "liquidity"   : 6,
         "simplicity"  : 6,
-        "score"       : 65.0,
+        "score"       : 54.0,
         "requires"    : "F&O account",
         "trigger"     : "2-of-3 signals (Strategy B backup)",
         "note"        : "Cheaper than ATM. First 5% loss unhedged. Good for deep crashes.",
@@ -151,14 +151,14 @@ STRATEGIES = {
         "name"        : "Gold Allocation (15%)",
         "short_name"  : "Gold 15%",
         "win_rate"    : 0.688,
-        "avg_pnl_pct" : 0.90,
-        "worst_pct"   : -2.75,
-        "best_pct"    : 5.77,
+        "avg_pnl_pct" : 0.66,
+        "worst_pct"   : -3.03,
+        "best_pct"    : 5.25,
         "avg_cost_pct": 0.05,
         "monthly_drag": 0.05,
         "liquidity"   : 8,
         "simplicity"  : 9,
-        "score"       : 38.4,
+        "score"       : 38.0,
         "requires"    : "Demat (Gold ETF / SGB)",
         "trigger"     : "Always-on (Strategy A)",
         "note"        : "Positive in 69% of drawdowns. Low cost. Global crisis hedge.",
@@ -167,32 +167,32 @@ STRATEGIES = {
     "S5_USDINR10": {
         "name"        : "USD/INR Long (10%)",
         "short_name"  : "USD/INR 10%",
-        "win_rate"    : 0.938,
-        "avg_pnl_pct" : 0.59,
-        "worst_pct"   : -0.04,
-        "best_pct"    : 2.68,
+        "win_rate"    : 0.625,   # 62.5% — corrected from old 93.8%
+        "avg_pnl_pct" : 0.22,
+        "worst_pct"   : -0.44,
+        "best_pct"    : 1.78,
         "avg_cost_pct": 0.10,
         "monthly_drag": 0.10,
         "liquidity"   : 7,
         "simplicity"  : 7,
-        "score"       : 41.8,
+        "score"       : 33.5,
         "requires"    : "International fund / USD FD",
         "trigger"     : "INR stress (USD/INR > 88)",
-        "note"        : "Useful for FX-driven drawdowns. 94% win rate across episodes.",
+        "note"        : "Useful for FX-driven drawdowns. Limited standalone protection.",
         "beta_scale"  : False,
     },
     "S6_Debt30": {
         "name"        : "Debt Rotation (30%)",
         "short_name"  : "Debt 30%",
-        "win_rate"    : 1.00,
-        "avg_pnl_pct" : 7.92,
+        "win_rate"    : 1.000,
+        "avg_pnl_pct" : 7.44,
         "worst_pct"   : 3.20,
-        "best_pct"    : 19.52,
+        "best_pct"    : 18.62,
         "avg_cost_pct": 0.30,
         "monthly_drag": 0.10,
         "liquidity"   : 9,
         "simplicity"  : 9,
-        "score"       : 57.1,
+        "score"       : 56.5,
         "requires"    : "Liquid / overnight debt fund",
         "trigger"     : "Always-on (Strategy A core)",
         "note"        : "100% win rate. Reduces equity beta + earns 6.5% p.a. Simplest hedge.",
@@ -201,32 +201,32 @@ STRATEGIES = {
     "S7_Collar": {
         "name"        : "Collar (ATM Put + OTM Call)",
         "short_name"  : "Collar",
-        "win_rate"    : 1.00,
-        "avg_pnl_pct" : 23.03,
-        "worst_pct"   : 9.45,
-        "best_pct"    : 58.53,
+        "win_rate"    : 1.000,
+        "avg_pnl_pct" : 15.96,
+        "worst_pct"   : 5.23,
+        "best_pct"    : 45.03,
         "avg_cost_pct": 0.60,
         "monthly_drag": 0.60,
         "liquidity"   : 5,
         "simplicity"  : 4,
-        "score"       : 70.0,
+        "score"       : 60.1,
         "requires"    : "F&O account (2 legs)",
         "trigger"     : "Pre-known events (elections, budgets)",
-        "note"        : "Sells upside to pay for put. Ideal when you need cheap crash protection.",
+        "note"        : "Sells upside to pay for put. 100% win rate. Ideal for event-driven crashes.",
         "beta_scale"  : True,
     },
     "S8_Combined": {
         "name"        : "Combined (Put 50% + Gold 15% + Debt 20%)",
         "short_name"  : "Combined",
-        "win_rate"    : 1.00,
-        "avg_pnl_pct" : 16.83,
-        "worst_pct"   : 6.26,
-        "best_pct"    : 42.76,
+        "win_rate"    : 1.000,
+        "avg_pnl_pct" : 12.12,
+        "worst_pct"   : 5.28,
+        "best_pct"    : 33.76,
         "avg_cost_pct": 0.80,
         "monthly_drag": 0.80,
         "liquidity"   : 6,
         "simplicity"  : 5,
-        "score"       : 63.2,
+        "score"       : 56.8,
         "requires"    : "F&O + Demat + Debt fund",
         "trigger"     : "2-of-3 signals active",
         "note"        : "Diversified hedge. No single point of failure. Recommended for HNIs.",
@@ -537,6 +537,8 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
     ws2 = wb.create_sheet("2_Hedge Recommendations")
     ws2.freeze_panes = "A3"
 
+    ws2.merge_cells("A1:K1")
+    t2 = ws2["A1"]
     t2.value = (f"HEDGE SIZING RECOMMENDATIONS  |  Portfolio β = {metrics['portfolio_beta']:.3f}  |  "
                 f"Nifty-Equivalent Exposure: {metrics['portfolio_beta']*100:.0f}% of portfolio")
     t2.font = Font(name="Calibri", bold=True, size=12, color="1E3A5F")
@@ -544,18 +546,12 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
     ws2.row_dimensions[1].height = 24
 
     h2 = ["Rank", "Strategy", "Win Rate", "Avg Hedge Gain", "Worst Case",
-          "Best Case", "Monthly Cost %", "Monthly Cost (₹)", "Annual Cost %", "Annual Cost (₹)", "Score", "Trigger", "Requires"]
-    cw2 = [6, 32, 10, 16, 14, 14, 14, 16, 14, 16, 9, 30, 30]
+          "Best Case", "Monthly Drag", "Annual Drag", "Score", "Trigger", "Requires"]
+    cw2 = [6, 32, 10, 16, 14, 14, 13, 13, 9, 30, 30]
     for j, (h, w) in enumerate(zip(h2, cw2), 1):
         c = ws2.cell(row=2, column=j, value=h)
-        # Highlight cost columns in amber
-        if "Cost" in h:
-            _style_header(c, bg="B7791F", fg="FFFFFF")
-        else:
-            _style_header(c)
+        _style_header(c)
         ws2.column_dimensions[get_column_letter(j)].width = w
-    ws2.merge_cells("A1:M1")
-    t2 = ws2["A1"]
 
     sorted_keys = sorted(STRATEGIES.keys(), key=lambda k: STRATEGIES[k]["score"], reverse=True)
     for rank, sk in enumerate(sorted_keys, 1):
@@ -569,11 +565,6 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
                 return f"{hs[pct_key]:.2f}%  ({fmt_inr(hs[inr_key])})"
             return f"{hs[pct_key]:.2f}%"
 
-        mo_pct  = hs['monthly_drag_pct']
-        mo_inr  = fmt_inr(hs['monthly_drag_inr']) if pv and 'monthly_drag_inr' in hs else "—"
-        ann_pct = hs['annual_drag_pct']
-        ann_inr = fmt_inr(hs['annual_drag_inr'])  if pv and 'annual_drag_inr'  in hs else "—"
-
         row_data = [
             rank,
             st["name"],
@@ -581,10 +572,8 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
             pct_or_inr("avg_protection_pct", "avg_protection_inr"),
             f"{hs['worst_protection_pct']:.2f}%",
             f"{hs['best_protection_pct']:.2f}%",
-            f"{mo_pct:.2f}%",
-            mo_inr,
-            f"{ann_pct:.2f}%",
-            ann_inr,
+            pct_or_inr("monthly_drag_pct", "monthly_drag_inr"),
+            f"{hs['annual_drag_pct']:.2f}%",
             hs["composite_score"],
             st["trigger"],
             st["requires"],
@@ -592,18 +581,15 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
         bg = "E8F4FD" if rank <= 3 else ("FFF8E1" if rank <= 5 else "FFFFFF")
         for j, val in enumerate(row_data, 1):
             c = ws2.cell(row=r, column=j, value=val)
-            # Amber tint on cost columns (7, 8, 9, 10)
-            cell_bg = "FFF9E6" if j in (7, 8, 9, 10) else bg
-            c.font = Font(name="Calibri", size=10, bold=(rank <= 3),
-                          color=("C62828" if j in (8, 10) and val != "—" else "000000"))
-            c.fill = PatternFill("solid", fgColor=cell_bg)
+            c.font = Font(name="Calibri", size=10, bold=(rank <= 3))
+            c.fill = PatternFill("solid", fgColor=bg)
             c.alignment = Alignment(horizontal="center" if j != 2 else "left",
-                                    vertical="center", wrap_text=(j >= 12))
+                                    vertical="center", wrap_text=(j >= 10))
             _border(c)
             ws2.row_dimensions[r].height = 24
 
     pr = len(STRATEGIES) + 5
-    ws2.merge_cells(f"A{pr}:M{pr}")
+    ws2.merge_cells(f"A{pr}:K{pr}")
     ws2[f"A{pr}"].value = "RECOMMENDED PLAYBOOK FOR THIS PORTFOLIO"
     ws2[f"A{pr}"].font  = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
     ws2[f"A{pr}"].fill  = PatternFill("solid", fgColor="1E3A5F")
@@ -621,7 +607,8 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
     ]
     for k, (title, desc) in enumerate(playbook):
         rn = pr + 1 + k
-        ws2.merge_cells(f"C{rn}:M{rn}")
+        ws2.merge_cells(f"C{rn}:K{rn}")
+        c1 = ws2.cell(row=rn, column=1, value=title)
         ws2.merge_cells(f"A{rn}:B{rn}")
         c1 = ws2.cell(row=rn, column=1, value=title)
         c1.font = Font(name="Calibri", bold=True, size=10, color="1E3A5F")
@@ -630,113 +617,11 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
         c2.font = Font(name="Calibri", size=10)
         c2.alignment = Alignment(vertical="center", wrap_text=True)
         ws2.row_dimensions[rn].height = 30
-        for j in range(1, 14):
+        for j in range(1, 12):
             _border(ws2.cell(row=rn, column=j))
 
-    # ── Sheet 3: Cost Summary ─────────────────────────────────
-    ws_cost = wb.create_sheet("3_Cost Summary")
-    ws_cost.freeze_panes = "A3"
-
-    pv  = metrics["portfolio_value"]
-    pb  = metrics["portfolio_beta"]
-
-    ws_cost.merge_cells("A1:H1")
-    tc = ws_cost["A1"]
-    tc.value = (f"STRATEGY COST BREAKDOWN  |  What Each Hedge Costs Per Month & Per Year"
-                + (f"  |  Portfolio Value: {fmt_inr(pv)}" if pv else "  |  (Enter portfolio value for ₹ amounts)"))
-    tc.font = Font(name="Calibri", bold=True, size=12, color="1E3A5F")
-    tc.alignment = Alignment(horizontal="left", vertical="center")
-    ws_cost.row_dimensions[1].height = 24
-
-    cost_hdrs = ["Rank", "Strategy", "Trigger",
-                 "Monthly Cost %", "Monthly Cost (₹)",
-                 "Annual Cost %",  "Annual Cost (₹)",
-                 "Avg Crash Gain", "Gain / Cost Ratio", "Note"]
-    cost_cws  = [6, 32, 28, 14, 16, 14, 16, 16, 16, 45]
-    ws_cost.merge_cells("A1:J1")  # widen to 10 cols
-    for j, (h, w) in enumerate(zip(cost_hdrs, cost_cws), 1):
-        c = ws_cost.cell(row=2, column=j, value=h)
-        if "Cost" in h:
-            _style_header(c, bg="B7791F", fg="FFFFFF")
-        elif "Gain" in h or "Ratio" in h:
-            _style_header(c, bg="1B5E20", fg="FFFFFF")
-        else:
-            _style_header(c)
-        ws_cost.column_dimensions[get_column_letter(j)].width = w
-    ws_cost.row_dimensions[2].height = 28
-
-    # Sort by monthly cost ascending (cheapest first)
-    sorted_by_cost = sorted(
-        STRATEGIES.keys(),
-        key=lambda k: (STRATEGIES[k]["monthly_drag"] * pb
-                       if STRATEGIES[k].get("beta_scale") else STRATEGIES[k]["monthly_drag"])
-    )
-
-    for row_i, sk in enumerate(sorted_by_cost, 1):
-        r = row_i + 2
-        st  = STRATEGIES[sk]
-        hs  = hedge_sizing[sk]
-        is_scaled = st.get("beta_scale", True)
-
-        mo_pct  = hs["monthly_drag_pct"]
-        ann_pct = hs["annual_drag_pct"]
-        mo_inr  = hs.get("monthly_drag_inr")
-        ann_inr = hs.get("annual_drag_inr")
-        avg_gain = hs["avg_protection_pct"]
-
-        # Gain/Cost ratio: avg crash gain ÷ annual drag
-        gain_cost = f"{avg_gain / ann_pct:.1f}×" if ann_pct > 0 else "∞"
-
-        cost_row = [
-            row_i,
-            st["name"],
-            st["trigger"],
-            f"{mo_pct:.2f}%",
-            fmt_inr(mo_inr) if mo_inr else "—",
-            f"{ann_pct:.1f}%",
-            fmt_inr(ann_inr) if ann_inr else "—",
-            f"+{avg_gain:.1f}%",
-            gain_cost,
-            st["note"],
-        ]
-        for j, val in enumerate(cost_row, 1):
-            c = ws_cost.cell(row=r, column=j, value=val)
-            # Amber background for cost columns, green for gain columns
-            if j in (4, 5):
-                c.fill = PatternFill("solid", fgColor="FFF9E6")
-                c.font = Font(name="Calibri", size=10,
-                              color=("C62828" if j == 5 and val != "—" else "B7791F"))
-            elif j in (6, 7):
-                c.fill = PatternFill("solid", fgColor="FEF2F2")
-                c.font = Font(name="Calibri", size=10,
-                              color=("C62828" if j == 7 and val != "—" else "B7791F"), bold=(j == 7))
-            elif j in (8, 9):
-                c.fill = PatternFill("solid", fgColor="F1F8E9")
-                c.font = Font(name="Calibri", size=10, color="2E7D32", bold=(j == 9))
-            else:
-                c.fill = PatternFill("solid", fgColor="FFFFFF")
-                c.font = Font(name="Calibri", size=10, bold=(j == 2))
-            c.alignment = Alignment(
-                horizontal="left" if j in (2, 3, 10) else "center",
-                vertical="center", wrap_text=(j == 10)
-            )
-            _border(c)
-        ws_cost.row_dimensions[r].height = 36
-
-    # Footer note
-    fn_row = len(sorted_by_cost) + 5
-    ws_cost.merge_cells(f"A{fn_row}:J{fn_row}")
-    fn_cell = ws_cost.cell(row=fn_row, column=1,
-        value=("⚑  Monthly Cost = premium drag while strategy is active.  "
-               "Gain/Cost Ratio = avg crash gain ÷ annual drag (higher = better insurance value).  "
-               "All figures pre-tax.  "
-               + ("" if pv else "Enter --value to populate ₹ columns.")))
-    fn_cell.font = Font(name="Calibri", size=9, italic=True, color="777777")
-    fn_cell.alignment = Alignment(vertical="center", wrap_text=True)
-    ws_cost.row_dimensions[fn_row].height = 28
-
-    # ── Sheet 4: Scenario Analysis ────────────────────────────
-    ws3 = wb.create_sheet("4_Scenario Analysis")
+    # ── Sheet 3: Scenario Analysis ────────────────────────────
+    ws3 = wb.create_sheet("3_Scenario Analysis")
     ws3.freeze_panes = "C3"
 
     ws3.merge_cells("A1:E1")
@@ -752,61 +637,44 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
         base_hdrs += ["Portfolio Loss (₹)"]
     for sk in STRAT_KEYS:
         sn = STRATEGIES[sk]["short_name"]
-        base_hdrs += [f"{sn} Hedge Cost%", f"{sn} Hedge Gain%", f"{sn} Net Pos%", f"{sn} Offset%"]
+        base_hdrs += [f"{sn} Hedge Gain%", f"{sn} Net Pos%", f"{sn} Offset%"]
 
     for j, h in enumerate(base_hdrs, 1):
         c = ws3.cell(row=2, column=j, value=h)
-        if "Cost" in h:
-            _style_header(c, bg="B7791F", fg="FFFFFF", wrap=True)
-        else:
-            _style_header(c, wrap=True)
+        _style_header(c, wrap=True)
         ws3.column_dimensions[get_column_letter(j)].width = 15 if j <= 4 else 13
     ws3.row_dimensions[2].height = 32
 
     for i, ep_row in scenario_df.iterrows():
         r = i + 3
         port_loss = ep_row["Portfolio_Loss_Pct"]
-        ep_dur_mo = ep_row.get("Duration_Days", 30) / 30   # episode duration in months
         row_vals = [ep_row["Episode"], ep_row["Nifty_DD_Pct"], port_loss]
         if metrics["portfolio_value"]:
             row_vals.append(ep_row.get("Portfolio_Loss_INR", ""))
         for sk in STRAT_KEYS:
-            sn   = STRATEGIES[sk]["short_name"]
-            mo_d = STRATEGIES[sk]["monthly_drag"]
-            pb_s = STRATEGIES[sk].get("beta_scale", True)
-            cost_pct = round((mo_d * metrics["portfolio_beta"] if pb_s else mo_d) * ep_dur_mo, 2)
+            sn = STRATEGIES[sk]["short_name"]
             row_vals += [
-                cost_pct,
                 ep_row.get(f"{sn}_HedgePnL_Pct", ""),
                 ep_row.get(f"{sn}_NetPos_Pct", ""),
                 ep_row.get(f"{sn}_Offset_Pct", ""),
             ]
 
-        base_offset = 5 if metrics["portfolio_value"] else 4   # column index of first strategy block
         for j, val in enumerate(row_vals, 1):
             c = ws3.cell(row=r, column=j, value=val)
             c.font = Font(name="Calibri", size=10)
             c.alignment = Alignment(horizontal="center", vertical="center")
             _border(c)
             if isinstance(val, (int, float)):
-                strat_col = j - base_offset   # 0-indexed within the repeating 4-col blocks
-                block_pos = strat_col % 4      # 0=cost, 1=gain, 2=net, 3=offset
                 if j == 3 or (metrics["portfolio_value"] and j == 4):
-                    # Portfolio loss column → red
                     c.font = Font(name="Calibri", size=10, color="C62828", bold=True)
-                elif j >= base_offset and block_pos == 0:
-                    # Cost column → amber background, red text
-                    c.fill = PatternFill("solid", fgColor="FFF9E6")
-                    c.font = Font(name="Calibri", size=10, color="B7791F")
-                elif j >= base_offset and block_pos == 1:
-                    # Gain column → green if positive
+                elif j > 4 and (j - (5 if metrics["portfolio_value"] else 4)) % 3 == 1:
                     if val > 0:
                         c.font = Font(name="Calibri", size=10, color="2E7D32")
                     elif val < 0:
                         c.font = Font(name="Calibri", size=10, color="C62828")
 
-    # ── Sheet 5: Strategy Detail ──────────────────────────────
-    ws4 = wb.create_sheet("5_Strategy Detail")
+    # ── Sheet 4: Strategy Detail ──────────────────────────────
+    ws4 = wb.create_sheet("4_Strategy Detail")
 
     ws4.merge_cells("A1:F1")
     t4 = ws4["A1"]
@@ -918,47 +786,16 @@ def generate_text_report(metrics, hedge_sizing, scenario_df, output_path, live_n
         hs = hedge_sizing[sk]
         st = STRATEGIES[sk]
         lines.append(f"  #{rank}  {st['name']}")
-        lines.append(f"       Win Rate:         {hs['win_rate_pct']:.0f}%")
-        lines.append(f"       Avg Protection:   {hs['avg_protection_pct']:.2f}%"
+        lines.append(f"       Win Rate:       {hs['win_rate_pct']:.0f}%")
+        lines.append(f"       Avg Protection: {hs['avg_protection_pct']:.2f}%"
                      + (f"  ({fmt_inr(hs.get('avg_protection_inr'))})" if pv else ""))
-        lines.append(f"       Worst / Best:     {hs['worst_protection_pct']:.2f}% / {hs['best_protection_pct']:.2f}%")
-        mo_line = f"       Monthly Cost:     {hs['monthly_drag_pct']:.2f}%"
-        if pv and 'monthly_drag_inr' in hs:
-            mo_line += f"  ({fmt_inr(hs['monthly_drag_inr'])}/mo)  ← cost while active"
-        lines.append(mo_line)
-        ann_line = f"       Annual Cost:      {hs['annual_drag_pct']:.2f}%"
-        if pv and 'annual_drag_inr' in hs:
-            ann_line += f"  ({fmt_inr(hs['annual_drag_inr'])}/yr if held all year)"
-        lines.append(ann_line)
-        ann_pct = hs['annual_drag_pct']
-        avg_gain = hs['avg_protection_pct']
-        ratio = f"{avg_gain / ann_pct:.1f}×" if ann_pct > 0 else "∞"
-        lines.append(f"       Gain/Cost Ratio:  {ratio}  (avg crash gain ÷ annual drag)")
-        lines.append(f"       Trigger:          {st['trigger']}")
-        lines.append(f"       Requires:         {st['requires']}")
-        lines.append(f"       Note:             {textwrap.fill(st['note'], 55, subsequent_indent=' '*23)}")
+        lines.append(f"       Worst / Best:   {hs['worst_protection_pct']:.2f}% / {hs['best_protection_pct']:.2f}%")
+        lines.append(f"       Annual Drag:    {hs['annual_drag_pct']:.2f}%"
+                     + (f"  ({fmt_inr(hs.get('annual_drag_inr'))})" if pv else ""))
+        lines.append(f"       Trigger:        {st['trigger']}")
+        lines.append(f"       Requires:       {st['requires']}")
+        lines.append(f"       Note:           {textwrap.fill(st['note'], 55, subsequent_indent=' '*23)}")
         lines.append("")
-
-    # ── Cost Summary section ──
-    lines += ["═" * 68, "COST SUMMARY — Cheapest → Most Expensive", "═" * 68, ""]
-    sorted_by_cost = sorted(
-        STRATEGIES.keys(),
-        key=lambda k: (STRATEGIES[k]["monthly_drag"] * pb
-                       if STRATEGIES[k].get("beta_scale") else STRATEGIES[k]["monthly_drag"])
-    )
-    lines.append(f"  {'Strategy':<38} {'Mo Cost':>9} {'Mo Cost ₹':>12} {'Ann Cost':>9} {'Ann Cost ₹':>14} {'G/C':>6}")
-    lines.append("  " + "─" * 92)
-    for sk in sorted_by_cost:
-        hs  = hedge_sizing[sk]
-        st  = STRATEGIES[sk]
-        mo  = f"{hs['monthly_drag_pct']:.2f}%"
-        ann = f"{hs['annual_drag_pct']:.1f}%"
-        mo_inr  = fmt_inr(hs['monthly_drag_inr']) if pv and 'monthly_drag_inr' in hs else "—"
-        ann_inr = fmt_inr(hs['annual_drag_inr'])  if pv and 'annual_drag_inr'  in hs else "—"
-        ann_pct = hs['annual_drag_pct']
-        ratio   = f"{hs['avg_protection_pct'] / ann_pct:.1f}×" if ann_pct > 0 else "∞"
-        lines.append(f"  {st['name']:<38} {mo:>9} {mo_inr:>12} {ann:>9} {ann_inr:>14} {ratio:>6}")
-    lines.append("")
 
     lines += ["═" * 68, "SCENARIO ANALYSIS — Key Historical Episodes", "═" * 68, ""]
     for _, ep_row in scenario_df.iterrows():
@@ -1085,97 +922,27 @@ def generate_docx_report(metrics, hedge_sizing, scenario_df, output_path, live_n
     else:
         p_live.add_run("[Live data unavailable]")
 
-    # 4. Hedge Recommendations — scorecard table
+    # 4. Hedge Recommendations
     doc.add_heading('HEDGE RECOMMENDATIONS', level=1)
-
-    # Build a proper table: Rank | Strategy | Win% | Avg Gain | Monthly Cost | Annual Cost | Trigger
-    tbl = doc.add_table(rows=1, cols=7)
-    tbl.style = 'Table Grid'
-    hdr_cells = tbl.rows[0].cells
-    for i, h in enumerate(["#", "Strategy", "Win%", "Avg Gain", "Monthly Cost", "Annual Cost", "Trigger"]):
-        hdr_cells[i].text = h
-        run = hdr_cells[i].paragraphs[0].runs[0]
-        run.bold = True
-        run.font.size = __import__('docx').shared.Pt(9)
-
     sorted_keys = sorted(STRATEGIES.keys(), key=lambda k: STRATEGIES[k]["score"], reverse=True)
     for rank, sk in enumerate(sorted_keys, 1):
         hs = hedge_sizing[sk]
         st = STRATEGIES[sk]
-
-        pnl_str = f"{hs['avg_protection_pct']:.1f}%"
-        if pv and 'avg_protection_inr' in hs:
-            pnl_str += f"\n({local_fmt_inr(hs['avg_protection_inr'])})"
-
-        mo_str = f"{hs['monthly_drag_pct']:.2f}%"
-        if pv and 'monthly_drag_inr' in hs:
-            mo_str += f"\n({local_fmt_inr(hs['monthly_drag_inr'])})"
-
-        ann_str = f"{hs['annual_drag_pct']:.1f}%"
-        if pv and 'annual_drag_inr' in hs:
-            ann_str += f"\n({local_fmt_inr(hs['annual_drag_inr'])})"
-
-        row_cells = tbl.add_row().cells
-        row_cells[0].text = str(rank)
-        row_cells[1].text = st['name']
-        row_cells[2].text = f"{hs['win_rate_pct']:.0f}%"
-        row_cells[3].text = pnl_str
-        row_cells[4].text = mo_str
-        row_cells[5].text = ann_str
-        row_cells[6].text = st['trigger']
-        for cell in row_cells:
-            cell.paragraphs[0].runs[0].font.size = __import__('docx').shared.Pt(9)
-
-    doc.add_paragraph()  # spacer
-
-    # 5. Dedicated Cost Summary section
-    doc.add_heading('STRATEGY COST SUMMARY', level=1)
-    p_intro = doc.add_paragraph(
-        'The table below shows exactly what each strategy costs per month and per year, '
-        'alongside the average crash gain and gain-to-cost ratio. '
-        'Sorted cheapest-first so you can compare insurance value at a glance.'
-    )
-    p_intro.runs[0].font.size = __import__('docx').shared.Pt(10)
-
-    cost_tbl = doc.add_table(rows=1, cols=6)
-    cost_tbl.style = 'Table Grid'
-    cost_hdrs = ["Strategy", "Monthly Cost %", "Monthly Cost (₹)", "Annual Cost %", "Annual Cost (₹)", "Gain/Cost Ratio"]
-    chdr_cells = cost_tbl.rows[0].cells
-    for i, h in enumerate(cost_hdrs):
-        chdr_cells[i].text = h
-        run = chdr_cells[i].paragraphs[0].runs[0]
-        run.bold = True
-        run.font.size = __import__('docx').shared.Pt(9)
-
-    sorted_by_cost = sorted(
-        STRATEGIES.keys(),
-        key=lambda k: (STRATEGIES[k]["monthly_drag"] * pb
-                       if STRATEGIES[k].get("beta_scale") else STRATEGIES[k]["monthly_drag"])
-    )
-    for sk in sorted_by_cost:
-        hs = hedge_sizing[sk]
-        st = STRATEGIES[sk]
-        mo_pct  = hs["monthly_drag_pct"]
-        ann_pct = hs["annual_drag_pct"]
-        mo_inr  = local_fmt_inr(hs["monthly_drag_inr"]) if pv and "monthly_drag_inr" in hs else "—"
-        ann_inr = local_fmt_inr(hs["annual_drag_inr"])  if pv and "annual_drag_inr"  in hs else "—"
-        avg_gain = hs["avg_protection_pct"]
-        ratio = f"{avg_gain / ann_pct:.1f}×" if ann_pct > 0 else "∞"
-
-        crow = cost_tbl.add_row().cells
-        crow[0].text = st["name"]
-        crow[1].text = f"{mo_pct:.2f}%"
-        crow[2].text = mo_inr
-        crow[3].text = f"{ann_pct:.1f}%"
-        crow[4].text = ann_inr
-        crow[5].text = ratio
-        for cell in crow:
-            cell.paragraphs[0].runs[0].font.size = __import__('docx').shared.Pt(9)
-
-    doc.add_paragraph(
-        "⚑ Monthly Cost = drag while strategy is active. "
-        "Gain/Cost Ratio = avg crash gain ÷ annual drag. All figures pre-tax."
-    ).runs[0].font.size = __import__('docx').shared.Pt(8)
+        p2 = doc.add_paragraph()
+        p2.add_run(f"#{rank} {st['name']}\n").bold = True
+        p2.add_run(f"Win Rate: {hs['win_rate_pct']:.0f}%\n")
+        
+        pnl_str = f"{hs['avg_protection_pct']:.2f}%"
+        if pv and 'avg_protection_inr' in hs: 
+            pnl_str += f" ({local_fmt_inr(hs['avg_protection_inr'])})"
+        p2.add_run(f"Avg Protection: {pnl_str}\n")
+        
+        drag_str = f"{hs['annual_drag_pct']:.2f}%"
+        if pv and 'annual_drag_inr' in hs: 
+            drag_str += f" ({local_fmt_inr(hs['annual_drag_inr'])})"
+        p2.add_run(f"Annual Drag: {drag_str}\n")
+        p2.add_run(f"Trigger: {st['trigger']}\n")
+        p2.add_run(f"Note: {st['note']}")
 
     doc.save(output_path)
 
