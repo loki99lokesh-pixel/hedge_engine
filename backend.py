@@ -89,6 +89,19 @@ def attempt_stooq(symbol, name):
         raise ValueError(f"Stooq returned invalid value {val} for {name}")
     return val
 
+def get_prev_close(symbol: str) -> float:
+    """Returns the previous trading day's close — used as the day-open baseline for change arrows."""
+    df = yf.download(symbol, period='5d', interval='1d', progress=False, threads=False)
+    if df.empty:
+        raise ValueError(f'No history for {symbol}')
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    close_col = 'Close' if 'Close' in df.columns else df.columns[-1]
+    series = df[close_col].dropna()
+    if len(series) < 2:
+        raise ValueError(f'Not enough rows for prev close: {symbol}')
+    return float(series.iloc[-2])
+
 def get_dma_only() -> float:
     """Fetches 1 year of history specifically for the 100-DMA calculation."""
     global LKG_DMA
@@ -163,6 +176,41 @@ def fetch_live_data():
         data['brent'] = attempt_yf('BZ=F', 'brent')
         sources['brent'] = 'yfinance_fallback'
 
+    # Previous-day closes — used by dashboard for day-change arrows
+    # Each falls back to None silently; frontend handles missing values gracefully
+    try:
+        data['prevClose_nifty']  = get_prev_close('^NSEI')
+    except Exception:
+        data['prevClose_nifty']  = None
+
+    try:
+        data['prevClose_vix']    = get_prev_close('^INDIAVIX')
+    except Exception:
+        data['prevClose_vix']    = None
+
+    try:
+        data['prevClose_goldUSD'] = get_prev_close('GC=F')
+    except Exception:
+        data['prevClose_goldUSD'] = None
+
+    try:
+        data['prevClose_brent']  = get_prev_close('BZ=F')
+    except Exception:
+        data['prevClose_brent']  = None
+
+    # USD/INR and Gold INR prev close derived from the above
+    try:
+        data['prevClose_usdinr'] = get_prev_close('USDINR=X')
+    except Exception:
+        data['prevClose_usdinr'] = None
+
+    if data.get('prevClose_goldUSD') and data.get('prevClose_usdinr'):
+        data['prevClose_goldINR'] = round(
+            data['prevClose_goldUSD'] * data['prevClose_usdinr'] / 31.1035, 2
+        )
+    else:
+        data['prevClose_goldINR'] = None
+
     # Final Calculations
     data['goldINR'] = round(data['goldUSD'] * data['usdinr'] / 31.1035, 2)
     data['ytd'] = round(((data['nifty'] / NIFTY_JAN1) - 1) * 100, 2)
@@ -197,25 +245,20 @@ def build_portfolio_df(holdings):
     Converts the JSON holdings list from the frontend into a DataFrame
     matching what portfolio_hedge_engine expects.
 
-    Frontend now sends (new schema):
-      name        = display name
-      type        = asset_type key  (e.g. 'equity_banking_large' or 'debt_liquid')
-      alloc       = allocation %
-      beta        = resolved beta mid value (computed by frontend JS)
-      betaLow     = beta low bound from matrix (or same as beta for override/flat)
-      betaHigh    = beta high bound from matrix
-      betaSource  = 'matrix' | 'override' | 'flat' | 'default'
-      cat         = asset category ('equity', 'debt', 'gold', 'intl', 'cash')
-      sector      = equity sector key (e.g. 'banking') — empty for non-equity
-      cap         = cap tier key (e.g. 'large') — empty for non-equity
+    Frontend sends: [{name, type, alloc, beta, cat}, ...]
+      name  = display name
+      type  = asset_type key (e.g. 'large_cap_stock')
+      alloc = allocation %
+      beta  = resolved beta value (already computed by frontend JS)
+      cat   = asset category ('equity', 'debt', 'gold', 'intl', 'cash')
 
     Engine expects columns:
-      Holding_Name, Asset_Type, Allocation_Pct, Beta, Beta_Low, Beta_High,
-      Beta_Source, Sector, Weight, Weighted_Beta
+      Holding_Name, Asset_Type, Allocation_Pct, Beta, Sector,
+      Weight, Weighted_Beta
     """
     df = pd.DataFrame(holdings)
 
-    # Readable sector label for non-equity; for equity use the sector key with title-case
+    # Map frontend asset-category ('equity', 'debt', …) to readable sector labels
     CAT_LABEL = {
         'equity': 'Equity',
         'debt'  : 'Debt / Liquid',
@@ -223,59 +266,26 @@ def build_portfolio_df(holdings):
         'intl'  : 'International',
         'cash'  : 'Cash / FD',
     }
-    SECTOR_LABEL = {
-        'banking': 'Banking / Finance', 'it': 'IT / Tech', 'fmcg': 'FMCG / Consumer',
-        'pharma': 'Pharma', 'auto': 'Auto / EV', 'infra': 'Infra / Capital Goods',
-        'metals': 'Metals / Mining', 'energy': 'Energy / Oil & Gas',
-        'realty': 'Realty', 'conglomerate': 'Conglomerate',
-        'multisector': 'Multi-sector', 'nifty_index': 'Nifty Index',
-    }
 
     df.rename(columns={
-        'name'      : 'Holding_Name',
-        'type'      : 'Asset_Type',
-        'alloc'     : 'Allocation_Pct',
-        'beta'      : 'Beta',
-        'betaLow'   : 'Beta_Low',
-        'betaHigh'  : 'Beta_High',
-        'betaSource': 'Beta_Source',
+        'name' : 'Holding_Name',
+        'type' : 'Asset_Type',
+        'alloc': 'Allocation_Pct',
+        'beta' : 'Beta',
     }, inplace=True)
 
-    # Build readable Sector column: equity rows use sector label, others use cat label
-    def resolve_sector(row):
-        cat = str(row.get('cat', '')).lower()
-        if cat == 'equity':
-            sec = str(row.get('sector', '')).lower()
-            return SECTOR_LABEL.get(sec, sec.replace('_', ' ').title() if sec else 'Equity')
-        return CAT_LABEL.get(cat, cat.title())
+    # Use readable sector label; fall back to the raw cat value if unknown
+    df['Sector'] = df['cat'].apply(lambda c: CAT_LABEL.get(str(c).lower(), str(c).title()))
+    df.drop(columns=['cat'], inplace=True)
 
-    df['Sector'] = df.apply(resolve_sector, axis=1)
-
-    # Drop frontend-only fields no longer needed
-    for col in ['cat', 'sector', 'cap']:
-        if col in df.columns:
-            df.drop(columns=[col], inplace=True)
-
-    # Ensure numeric types
     df['Allocation_Pct'] = pd.to_numeric(df['Allocation_Pct'], errors='coerce').fillna(0)
-    df['Beta']           = pd.to_numeric(df['Beta'],           errors='coerce').fillna(1.0)
-    df['Beta_Low']       = pd.to_numeric(df.get('Beta_Low',  df['Beta']), errors='coerce').fillna(df['Beta'])
-    df['Beta_High']      = pd.to_numeric(df.get('Beta_High', df['Beta']), errors='coerce').fillna(df['Beta'])
-
-    # Normalise beta source label to title-case for Excel display
-    if 'Beta_Source' in df.columns:
-        df['Beta_Source'] = df['Beta_Source'].apply(
-            lambda s: {'matrix':'Matrix','override':'Override','flat':'Flat',
-                       'default':'Default'}.get(str(s).lower(), str(s).title())
-        )
-    else:
-        df['Beta_Source'] = 'Default'
+    df['Beta'] = pd.to_numeric(df['Beta'], errors='coerce').fillna(1.0)
 
     total = df['Allocation_Pct'].sum()
     if total > 0 and abs(total - 100) > 0.5:
         df['Allocation_Pct'] = df['Allocation_Pct'] / total * 100
 
-    df['Weight']        = df['Allocation_Pct'] / 100
+    df['Weight'] = df['Allocation_Pct'] / 100
     df['Weighted_Beta'] = df['Weight'] * df['Beta']
 
     return df
