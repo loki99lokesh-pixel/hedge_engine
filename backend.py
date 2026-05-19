@@ -4,6 +4,9 @@ import time
 import threading
 import io
 
+import json
+import redis
+
 import pandas as pd
 import requests
 import yfinance as yf
@@ -48,10 +51,38 @@ def get_dynamic_jan1_baseline():
 
 NIFTY_JAN1 = get_dynamic_jan1_baseline()
 
-CACHE = None
-CACHE_TIMESTAMP = 0
-CACHE_TTL = 300
-CACHE_LOCK = threading.Lock()
+# ══════════════════════════════════════════════════════════════
+# DATABASE CONNECTION (REDIS)
+# ══════════════════════════════════════════════════════════════
+REDIS_URL = os.environ.get('REDIS_URL')
+
+if REDIS_URL:
+    db = redis.from_url(REDIS_URL, decode_responses=True)
+else:
+    # Failsafe for local testing on your laptop
+    db = None 
+    LOCAL_CACHE = {}
+    LOCAL_DMA = 23521.0
+
+def save_state(key, data):
+    if db:
+        db.set(key, json.dumps(data))
+    else:
+        if key == 'dma': 
+            global LOCAL_DMA; LOCAL_DMA = data
+        else: 
+            global LOCAL_CACHE; LOCAL_CACHE[key] = data
+
+def get_state(key):
+    if db:
+        val = db.get(key)
+        return json.loads(val) if val else None
+    else:
+        if key == 'dma': 
+            return LOCAL_DMA
+        else: 
+            return LOCAL_CACHE.get(key)
+
 
 # ══════════════════════════════════════════════════════════════
 # DATA FETCHERS
@@ -104,7 +135,6 @@ def get_prev_close(symbol: str) -> float:
 
 def get_dma_only() -> float:
     """Fetches 1 year of history specifically for the 100-DMA calculation."""
-    global LKG_DMA
     df = yf.download('^NSEI', period='1y', interval='1d', progress=False, threads=False)
     if df.empty:
         raise ValueError('No yfinance history for ^NSEI')
@@ -112,12 +142,12 @@ def get_dma_only() -> float:
         df.columns = df.columns.get_level_values(0)
     close_col = 'Close' if 'Close' in df.columns else df.columns[-1]
     
-    # Calculate DMA and update Last Known Good memory
+    # Calculate DMA and update database
     dma_100 = float(df[close_col].dropna().rolling(window=100).mean().iloc[-1])
     if pd.isna(dma_100):
          raise ValueError('Calculated DMA is NaN')
          
-    LKG_DMA = dma_100
+    save_state('dma', dma_100)
     return dma_100
 
 def fetch_live_data():
@@ -138,7 +168,7 @@ def fetch_live_data():
         dynamic_dma = get_dma_only()
     except Exception as e:
         print(f"DMA math failed, using LKG: {e}")
-        dynamic_dma = LKG_DMA
+        dynamic_dma = get_state('dma') or 23521.0
 
     # 3. INDIA VIX (Stooq Primary -> yfinance Fallback)
     try:
@@ -224,16 +254,13 @@ def fetch_live_data():
     return data
 
 def update_cache_loop():
-    global CACHE, CACHE_TIMESTAMP
     while True:
         try:
             payload = fetch_live_data()
-            with CACHE_LOCK:
-                CACHE = payload
-                CACHE_TIMESTAMP = time.time()
+            save_state('live_market_data', payload)
         except Exception as e:
             print(f"[Background Sync Error] {e}")
-        time.sleep(CACHE_TTL)
+        time.sleep(300) # Re-fetch every 5 minutes
 
 threading.Thread(target=update_cache_loop, daemon=True).start()
 
@@ -303,20 +330,17 @@ def portfolio_route():
 
 @app.route('/api/live')
 def api_live():
-    global CACHE, CACHE_TIMESTAMP
-    with CACHE_LOCK:
-        if CACHE is not None and (time.time() - CACHE_TIMESTAMP) < CACHE_TTL:
-            return jsonify({'status': 'Success', 'data': CACHE, 'cached': True})
-        try:
-            payload = fetch_live_data()
-            CACHE = payload
-            CACHE_TIMESTAMP = time.time()
-            return jsonify({'status': 'Success', 'data': payload, 'cached': False})
-        except Exception as exc:
-            if CACHE is not None:
-                return jsonify({'status': 'Success', 'data': CACHE, 'cached': 'Stale',
-                                'error_msg': str(exc)})
-            return jsonify({'status': 'Error', 'message': str(exc)}), 500
+    cached = get_state('live_market_data')
+    if cached:
+        return jsonify({'status': 'Success', 'data': cached, 'cached': True})
+    
+    # Failsafe if the database is completely empty on first boot
+    try:
+        payload = fetch_live_data()
+        save_state('live_market_data', payload)
+        return jsonify({'status': 'Success', 'data': payload, 'cached': False})
+    except Exception as exc:
+        return jsonify({'status': 'Error', 'message': str(exc)}), 500
 
 # ══════════════════════════════════════════════════════════════
 # ENGINE BRIDGES
@@ -383,8 +407,7 @@ def generate_text():
 
         # Use the already-cached live data (avoids a second 6-month yfinance download
         # in the same request and prevents the endpoint from hanging on slow connections)
-        with CACHE_LOCK:
-            cached = CACHE
+        cached = get_state('live_market_data')
 
         live_nifty = None
         if cached:
@@ -436,8 +459,7 @@ def generate_word():
         hedge_sizing = phe.compute_hedge_sizing(metrics["portfolio_beta"], port_value)
         scenario_df = phe.compute_scenario_analysis(metrics["portfolio_beta"], port_value)
 
-        with CACHE_LOCK:
-            cached = CACHE
+        cached = get_state('live_market_data')
 
         live_nifty = None
         if cached:
