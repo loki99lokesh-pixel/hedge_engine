@@ -25,6 +25,21 @@ try:
 except ImportError:
     pass
 
+STATE_FILE = "v3_state.json"
+
+def load_v3_state():
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {'peak_price': 0, 'trough_price': float('inf'), 'days_in_dd': 0, 'low_vol_days': 0, 'prev_hedge': 0}
+
+def save_v3_state(state):
+    with open(STATE_FILE, 'w') as f:
+        json.dump(state, f)
+
 @app.errorhandler(405)
 def method_not_allowed(e):
     return Response('{"error": "Method not allowed"}', status=405, mimetype='application/json')
@@ -240,6 +255,20 @@ def fetch_live_data():
         )
     else:
         data['prevClose_goldINR'] = None
+
+    # 5-day return for Mixed Signal Filter in v3.2 engine
+    try:
+        df5 = yf.download('^NSEI', period='10d', interval='1d', progress=False, threads=False)
+        if isinstance(df5.columns, pd.MultiIndex):
+            df5.columns = df5.columns.get_level_values(0)
+        close_col5 = 'Close' if 'Close' in df5.columns else df5.columns[-1]
+        s5 = df5[close_col5].dropna()
+        if len(s5) >= 6:
+            data['ret_5d'] = round(((float(s5.iloc[-1]) / float(s5.iloc[-6])) - 1) * 100, 2)
+        else:
+            data['ret_5d'] = 0.0
+    except Exception:
+        data['ret_5d'] = 0.0
 
     # Final Calculations
     data['goldINR'] = round(data['goldUSD'] * data['usdinr'] / 31.1035, 2)
@@ -487,6 +516,94 @@ def generate_word():
         print(f"Engine Error (Word): {e}")
         import traceback; traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/v3_hedge', methods=['GET'])
+def get_v3_magnitude_hedge():
+    try:
+        # 1. Pull all live inputs from the cached market data (populated by background thread)
+        cached = get_state('live_market_data') or {}
+        nifty_close = cached.get('nifty', 24000)
+        gap_pct     = cached.get('dmaGap', 0)
+        vix         = cached.get('vix', 18.5)
+
+        # rv20d: use India VIX as the best available realised-vol proxy
+        # (actual 20-day realised vol is not fetched separately; VIX is highly correlated)
+        rv20d = vix
+
+        # 5-day return: derive from current price vs 5-day-ago close if available,
+        # otherwise fall back to 0 (neutral — no Mixed Signal Filter bias)
+        ret_5d = cached.get('ret_5d', 0.0)
+
+        # 2. FPI weekly outflow — read from query param sent by the dashboard
+        # Dashboard sends live.fpiWeekly (user-entered via the ✎ edit field)
+        try:
+            fpi = float(request.args.get('fpi', -1200))
+        except (TypeError, ValueError):
+            fpi = -1200
+
+        # 3. portfolio_beta — defaults to 1.0 for the main dashboard (pure Nifty exposure).
+        # The portfolio hedge page passes the user's actual computed beta via ?beta=X
+        # so the engine returns a beta-adjusted target specific to that portfolio.
+        try:
+            portfolio_beta = float(request.args.get('beta', 1.0))
+            portfolio_beta = max(0.01, min(3.0, portfolio_beta))   # clamp to sane range
+        except (TypeError, ValueError):
+            portfolio_beta = 1.0
+
+        # 4. Load persisted state memory (peak/trough/days_in_dd/low_vol_days)
+        state = load_v3_state()
+
+        # 5. Execute the v3.2 magnitude engine
+        nifty_hedge, active_stage, diag, new_state = phe.calculate_v3_magnitude_hedge(
+            vix, rv20d, fpi, gap_pct, nifty_close, state, ret_5d
+        )
+
+        # 6. Scale by portfolio beta (1.0 for dashboard = no scaling, pure Nifty target)
+        adjusted_hedge = min(100.0, nifty_hedge * portfolio_beta)
+
+        # 7. Persist updated state for next call
+        save_v3_state(new_state)
+
+        return jsonify({
+            'status': 'success',
+            'data': {
+                'beta_adjusted_target': round(adjusted_hedge, 1),
+                'nifty_base_target':    round(nifty_hedge, 1),
+                'active_stage':         active_stage,
+                'diagnostics':          diag,
+                'inputs_used': {
+                    'vix':         round(vix, 1),
+                    'rv20d':       round(rv20d, 1),
+                    'fpi_weekly':  fpi,
+                    'gap_pct':     round(gap_pct, 2),
+                    'ret_5d':      round(ret_5d, 2),
+                    'nifty_close': round(nifty_close, 0),
+                }
+            }
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/v3_reset', methods=['POST'])
+def reset_v3_state(): 
+    #Clears the persisted v3.2 state file so the engine starts fresh.
+    #Call this whenever stale prev_hedge values are contaminating the output
+    #(e.g. after the old hardcoded-input era, or after a deployment change).
+    try: 
+        fresh_state = {
+            'peak_price' : 0, 
+            'trough_price': float('inf'), 
+            'days_in_dd' : 0, 
+            'low_vol_days': 0, 
+            'prev_hedge' : 0, 
+        } 
+        save_v3_state(fresh_state) 
+        return jsonify({'status': 'success', 'message': 'v3 state reset to fresh defaults.'}) 
+    except Exception as e: 
+        return jsonify({'status': 'error', 'message': str(e)}), 500 
+
 
 if __name__ == '__main__':
     print("=" * 60)
