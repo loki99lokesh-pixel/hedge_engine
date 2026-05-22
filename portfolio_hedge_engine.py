@@ -999,5 +999,122 @@ def main():
 
     print("═"*60 + "\n")
 
+# ══════════════════════════════════════════════════════════════
+# MAGNITUDE HEDGING v3.2 ENGINE
+# ══════════════════════════════════════════════════════════════
+import math
+
+def sigmoid(x):
+    return 1 / (1 + math.exp(-x))
+
+def get_continuous_notional(score):
+    # v3.2 FIX: Floor set to 10. Multipliers set to 30. (10 + 30 + 30 + 30 = 100 Max)
+    n = 10.0
+    n += 30.0 * sigmoid((score - 25.0) / 3.5)
+    n += 30.0 * sigmoid((score - 50.0) / 3.5)
+    n += 30.0 * sigmoid((score - 70.0) / 3.5)
+    return min(100.0, max(10.0, n))
+
+def norm_fpi(fpi):
+    # v3.1 BUG 3 FIX: Denominator expanded to 8000 Cr. Inflows capped at -50.
+    if fpi < 0:
+        return min(100.0, (-fpi) / 8000.0 * 100.0) # Outflow
+    else:
+        return max(-50.0, (-fpi) / 8000.0 * 100.0) # Inflow
+
+def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, state, ret_5d):
+    """
+    Evaluates v3.2 logic. Requires previous state dictionary to manage 
+    the De-escalation Gate (Fix 7) and Drawdown penalties.
+    """
+    # 1. Update Peak, Trough & Drawdown
+    peak = max(state.get('peak_price', current_price), current_price)
+    dd_pct = abs((current_price - peak) / peak) * 100 if peak > 0 else 0
+    trough = min(state.get('trough_price', current_price), current_price)
+    
+    if dd_pct == 0:
+        trough = current_price # Reset trough if we are at a new high
+
+    if dd_pct > 0:
+        days_in_dd = state.get('days_in_dd', 0) + 1
+    else:
+        days_in_dd = 0
+
+    # 2. Stage 1: Onset Score Calculation
+    rvN  = min(100.0, max(0.0, (rv20d - 5.0) / 25.0 * 100.0))
+    gapN = min(100.0, max(0.0, (-gap_pct) / 20.0 * 100.0))
+    fpiN = norm_fpi(fpi_net)
+    vixN = min(100.0, max(0.0, (vix - 10.0) / 30.0 * 100.0))
+
+    # Mixed Signal Filter (v3.1 Bug 2)
+    msf_active = (rv20d > 18.0 and ret_5d > -3.0)
+    fpi_weight = 0.15 * (0.8 if msf_active else 1.0)
+
+    onset_score = (0.48 * rvN) + (0.25 * gapN) + (fpi_weight * fpiN) + (0.12 * vixN)
+    s1_target = get_continuous_notional(onset_score)
+
+    # 3. Stage 2: Active Phase Calculation
+    penalty = min(0.08 * days_in_dd, 15.0) # v3.1 FIX 6b: Capped at 15%
+    # v3.1 BUG 1 FIX: Intercept restored to 12.5
+    s2_target = 12.5 + (0.52 * vix) + (0.48 * dd_pct) + (5.10 * (vix * dd_pct / 100.0)) - penalty
+    s2_target = min(90.0, max(10.0, s2_target))
+
+    # 4. Transition Logic (v3.2 Transition Trapdoor fix)
+    final_target = max(s1_target, s2_target)
+    if s1_target >= s2_target:
+        active_stage = "Stage 1 — Onset"
+    else:
+        active_stage = "Stage 2 — Active Phase"
+
+    # 5. Stage 3: Escalation Overrides (Hard Glass-Smash)
+    if dd_pct >= 20:
+        final_target = max(final_target, 75.0)
+        active_stage = "Stage 3: Escalated (MAJOR minimum)"
+    if dd_pct >= 15 and (rv20d > 22 or vix > 28):
+        final_target = 100.0
+        active_stage = "Stage 3: Escalated (SEVERE)"
+    if dd_pct >= 25:
+        final_target = 100.0
+        active_stage = "Stage 3: Escalated (SEVERE unconditional)"
+
+    # 6. Fix 7: De-escalation Gate (Memory Check)
+    low_vol_days = state.get('low_vol_days', 0)
+    if rv20d < 22 and vix < 20: 
+        low_vol_days += 1
+    else:
+        low_vol_days = 0
+
+    # Calculate 50% recovery ratio
+    recovery_ratio = 0
+    if peak - trough > 0:
+        recovery_ratio = (current_price - trough) / (peak - trough)
+
+    # Prevent dropping the hedge if the gate conditions are not fully met
+    prev_hedge = state.get('prev_hedge', 0)
+    if prev_hedge > final_target and "Stage 3" not in active_stage:
+        gate_cleared = (recovery_ratio > 0.50) and (low_vol_days >= 10)
+        if not gate_cleared:
+            final_target = prev_hedge # Block the drop, maintain previous hedge
+            active_stage = "Stage 3: De-escalation Blocked (Gate closed)"
+
+    # 7. Compile Final State and Diagnostics
+    new_state = {
+        'peak_price': peak,
+        'trough_price': trough,
+        'days_in_dd': days_in_dd,
+        'low_vol_days': low_vol_days,
+        'prev_hedge': final_target
+    }
+
+    diagnostics = {
+        'onset_score': round(onset_score, 1),
+        's1_target': round(s1_target, 1),
+        's2_penalty': round(penalty, 1),
+        's2_target': round(s2_target, 1),
+        'current_dd': round(dd_pct, 2)
+    }
+
+    return final_target, active_stage, diagnostics, new_state
+
 if __name__ == "__main__":
     main()
