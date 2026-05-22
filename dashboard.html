@@ -191,6 +191,95 @@
       border: 1px solid var(--border);
     }
 
+    /* ══ TOP PROGRESS BAR ══════════════════════════════════════ */
+    #topProgressBar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 0%;
+      height: 3px;
+      background: linear-gradient(90deg, #2563EB 0%, #60A5FA 50%, #2563EB 100%);
+      background-size: 200% 100%;
+      z-index: 9999;
+      transition: width 0.25s ease, opacity 0.4s ease;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #topProgressBar.running {
+      opacity: 1;
+      animation: progressShimmer 1.4s linear infinite;
+    }
+
+    #topProgressBar.done {
+      width: 100% !important;
+      opacity: 0;
+      transition: width 0.15s ease, opacity 0.45s ease 0.15s;
+    }
+
+    @keyframes progressShimmer {
+      0% {
+        background-position: 200% 0;
+      }
+
+      100% {
+        background-position: -200% 0;
+      }
+    }
+
+    /* ══ TILE SKELETON SHIMMER ══════════════════════════════════ */
+    @keyframes shimmerSlide {
+      0% {
+        transform: translateX(-100%);
+      }
+
+      100% {
+        transform: translateX(100%);
+      }
+    }
+
+    .tile-value.shimmer,
+    .tile-status.shimmer {
+      position: relative;
+      overflow: hidden;
+      color: transparent !important;
+      background: var(--bg3);
+      border-radius: 4px;
+      user-select: none;
+    }
+
+    .tile-value.shimmer::after,
+    .tile-status.shimmer::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.65) 50%,
+          transparent 100%);
+      animation: shimmerSlide 1.2s ease-in-out infinite;
+    }
+
+    /* Verdict banner skeleton during initial load */
+    .verdict-title.shimmer {
+      position: relative;
+      overflow: hidden;
+      color: transparent !important;
+      background: rgba(0, 0, 0, 0.07);
+      border-radius: 4px;
+      min-width: 220px;
+      display: inline-block;
+    }
+
+    .verdict-title.shimmer::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg,
+          transparent 0%, rgba(255, 255, 255, 0.55) 50%, transparent 100%);
+      animation: shimmerSlide 1.2s ease-in-out infinite;
+    }
+
     /* ── Chart badge clarifier ── */
     .chart-badge-simulated {
       background: var(--amber-bg);
@@ -1169,6 +1258,8 @@
 
 <body>
 
+  <div id="topProgressBar"></div>
+
   <div class="tooltip-box" id="tooltip"></div>
 
   <header class="header">
@@ -1191,11 +1282,12 @@
   <main class="main">
 
     <div class="verdict amber" id="verdictBanner">
-      <div class="verdict-icon" id="verdictIcon">⚠</div>
+      <div class="verdict-icon" id="verdictIcon">⏳</div>
       <div class="verdict-content">
         <div class="verdict-label">Current Regime Verdict</div>
-        <div class="verdict-title" id="verdictTitle">Loading live signals…</div>
-        <div class="verdict-body" id="verdictBody">Fetching market data. Updates on load and every 5 minutes.</div>
+        <div class="verdict-title shimmer" id="verdictTitle">Loading live signals…</div>
+        <div class="verdict-body" id="verdictBody">Fetching market data. The verdict updates automatically once signals
+          are evaluated.</div>
         <div class="verdict-signals" id="verdictSignals"></div>
         <div class="signal-count-row" id="signalDotRow"></div>
       </div>
@@ -1206,47 +1298,47 @@
 
       <div class="tile neutral" id="tile-vix">
         <div class="tile-label">India VIX</div>
-        <div class="tile-value" id="val-vix">—</div>
-        <div class="tile-status" id="st-vix">Loading</div>
+        <div class="tile-value shimmer" id="val-vix">——</div>
+        <div class="tile-status shimmer" id="st-vix">Loading</div>
         <div class="tile-sub" id="sub-vix">&lt;15 calm · 20–28 caution · &gt;28 crisis</div>
         <div class="tile-change flat" id="chg-vix"></div>
       </div>
 
       <div class="tile neutral" id="tile-nifty">
         <div class="tile-label">Nifty 50</div>
-        <div class="tile-value" id="val-nifty">—</div>
-        <div class="tile-status" id="st-nifty">Loading</div>
+        <div class="tile-value shimmer" id="val-nifty">——</div>
+        <div class="tile-status shimmer" id="st-nifty">Loading</div>
         <div class="tile-sub" id="sub-nifty">Dynamic 100-DMA gap</div>
         <div class="tile-change flat" id="chg-nifty"></div>
       </div>
 
       <div class="tile neutral" id="tile-fx">
         <div class="tile-label">USD / INR</div>
-        <div class="tile-value" id="val-fx">—</div>
-        <div class="tile-status" id="st-fx">Loading</div>
+        <div class="tile-value shimmer" id="val-fx">——</div>
+        <div class="tile-status shimmer" id="st-fx">Loading</div>
         <div class="tile-sub" id="sub-fx">3M avg ₹<span id="fx-avg-label">84.50</span> · +3% = stress</div>
         <div class="tile-change flat" id="chg-fx"></div>
       </div>
 
       <div class="tile neutral" id="tile-gold">
         <div class="tile-label">Gold (USD/oz)</div>
-        <div class="tile-value" id="val-gold">—</div>
-        <div class="tile-status" id="st-gold">Loading</div>
+        <div class="tile-value shimmer" id="val-gold">——</div>
+        <div class="tile-status shimmer" id="st-gold">Loading</div>
         <div class="tile-sub" id="sub-gold">52W ref: $<span id="gold-ref-label">3,500</span> · update quarterly</div>
         <div class="tile-change flat" id="chg-gold"></div>
       </div>
 
       <div class="tile neutral" id="tile-brent">
         <div class="tile-label">Brent Crude</div>
-        <div class="tile-value" id="val-brent">—</div>
-        <div class="tile-status" id="st-brent">Loading</div>
+        <div class="tile-value shimmer" id="val-brent">——</div>
+        <div class="tile-status shimmer" id="st-brent">Loading</div>
         <div class="tile-sub" id="sub-brent">&gt;$95 stagflation risk</div>
         <div class="tile-change flat" id="chg-brent"></div>
       </div>
 
       <div class="tile neutral" id="tile-goldinr">
         <div class="tile-label">Gold INR/gram</div>
-        <div class="tile-value" id="val-goldinr">—</div>
+        <div class="tile-value shimmer" id="val-goldinr">——</div>
         <div class="tile-status" id="st-goldinr">Derived</div>
         <div class="tile-sub" id="sub-goldinr">Local hedge equivalent</div>
         <div class="tile-change flat" id="chg-goldinr"></div>
@@ -1254,21 +1346,21 @@
 
       <div class="tile neutral" id="tile-ytd">
         <div class="tile-label">Nifty YTD (Spot)</div>
-        <div class="tile-value" id="val-ytd">—</div>
-        <div class="tile-status" id="st-ytd">Loading</div>
+        <div class="tile-value shimmer" id="val-ytd">——</div>
+        <div class="tile-status shimmer" id="st-ytd">Loading</div>
         <div class="tile-sub">Jan 1 base: <span id="ytd-base-label">26,329</span></div>
       </div>
 
       <div class="tile neutral" id="tile-tri">
         <div class="tile-label">Est. YTD (TRI)</div>
-        <div class="tile-value" id="val-tri">—</div>
+        <div class="tile-value shimmer" id="val-tri">——</div>
         <div class="tile-status tile-status-blue" id="st-tri">Div Adj</div>
         <div class="tile-sub">Spot + pro-rata 1.3% div yield</div>
       </div>
 
       <div class="tile neutral" id="tile-dma">
         <div class="tile-label">Nifty vs 100-DMA</div>
-        <div class="tile-value" id="val-dma">—</div>
+        <div class="tile-value shimmer" id="val-dma">——</div>
         <div class="tile-status" id="st-dma">Derived</div>
         <div class="tile-sub">DMA: <span id="dma-level-label">—</span></div>
       </div>
@@ -1387,8 +1479,13 @@
             style="background:var(--primary-bg); color:var(--primary); border-color:rgba(37,99,235,0.2);">LOOCV
             Validated</span>
         </div>
-        <span id="v3-stage-badge"
-          style="font-family: var(--font-mono); font-size: 10px; font-weight: 600; border: 1px solid transparent; background: var(--bg3); color: var(--muted); padding: 4px 8px; border-radius: 4px;">INITIALIZING...</span>
+        <div id="v3-stage-badge"
+          style="font-family: var(--font-mono); font-size: 10px; font-weight: 600; border: 1px solid var(--border); background: var(--bg3); color: var(--muted); padding: 6px 12px; border-radius: 6px; text-align:right; min-width:200px;">
+          <div id="v3-stage-label" style="font-size:10px; text-transform:uppercase; letter-spacing:0.05em;">INITIALIZING
+          </div>
+          <div id="v3-stage-desc" style="font-size:10px; font-weight:400; margin-top:2px; opacity:0.8;">Fetching market
+            data…</div>
+        </div>
       </div>
 
       <div style="display:flex; align-items: center; justify-content: space-between; margin-top: 24px;">
@@ -1477,79 +1574,136 @@
       }
 
       async function loadV3Engine() {
-        try {
-          const res = await fetch('/api/v3_hedge?fpi=' + live.fpiWeekly);
-          const json = await res.json();
-          if (json.status === 'success') {
-            const d = json.data;
-            document.getElementById('v3-target-val').textContent = d.beta_adjusted_target.toFixed(1) + '%';
-            document.getElementById('v3-stage-badge').textContent = d.active_stage.toUpperCase();
+        // BUG 2 FIX: When the page is opened as a static file (no Flask backend), the
+        // /api/v3_hedge fetch throws a network error and the card showed "Offline".
+        // Solution: detect static-file context first and fall through to the JS fallback.
+        // We detect this by checking if the page origin is file:// or if the /api/live
+        // endpoint previously returned null (dataSource === 'seeded' after proxy attempts
+        // also failed).  In either case we skip the fetch entirely and run the JS engine.
+        const isStaticFile = (window.location.protocol === 'file:');
+        const backendKnownDown = (live.dataSource === 'seeded');
 
-            document.getElementById('diag-score').textContent = d.diagnostics.onset_score;
-            document.getElementById('diag-penalty').textContent = '-' + d.diagnostics.s2_penalty.toFixed(1) + '% (time adj)';
-            document.getElementById('diag-dd').textContent = d.diagnostics.current_dd + '%';
-            document.getElementById('diag-base').textContent = d.nifty_base_target.toFixed(1) + '%';
+        if (!isStaticFile && !backendKnownDown) {
+          try {
+            // BUG 1 (minor): fpiWeekly is user-entered only and never in the backend response —
+            // this is intentional. We pass the in-memory value, which may be the seed (-6000)
+            // until the user edits it via ✎. That is the correct, designed behaviour.
+            const res = await fetch('/api/v3_hedge?fpi=' + (live.fpiWeekly ?? -1200), { cache: 'no-cache' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const json = await res.json();
+            if (json.status === 'success') {
+              const d = json.data;
 
-            // --- Actionable Advice Line ---
-            let actionText = "";
-            let actionColor = "";
-            if (d.active_stage.includes("De-escalation Blocked")) {
-              actionText = "► Hold: Maintaining hedge — recovery gate not yet cleared";
-              actionColor = "var(--amber)";
-            } else if (d.active_stage.includes("Stage 3")) {
-              actionText = "► Action: Execute Strategy C (Short Futures or Collars)";
-              actionColor = "var(--red)";
-            } else if (d.beta_adjusted_target > 25) {
-              actionText = "► Action: Deploy Strategy B (Buy ATM Nifty Puts)";
-              actionColor = "var(--amber)";
-            } else {
-              actionText = "► Action: Maintain Strategy A (Core Debt/Gold Buffer)";
-              actionColor = "var(--green)";
-            }
+              // BUG 3 FIX: The OLD code had:
+              //   document.getElementById('v3-stage-badge').textContent = d.active_stage.toUpperCase();
+              // which called .textContent on the CONTAINER div, wiping the two child divs
+              // (v3-stage-label and v3-stage-desc) before the STAGE_MAP block below could
+              // update them. That line is intentionally REMOVED here.
+              document.getElementById('v3-target-val').textContent = (d.beta_adjusted_target ?? 0).toFixed(1) + '%';
 
-            let actionDiv = document.getElementById('v3-action-advise');
-            if (!actionDiv) {
-              actionDiv = document.createElement('div');
-              actionDiv.id = 'v3-action-advise';
-              actionDiv.style.cssText = "font-size: 13px; font-weight: 600; margin-top: 6px; letter-spacing: -0.01em;";
-              document.getElementById('v3-target-val').parentNode.appendChild(actionDiv);
-            }
-            actionDiv.textContent = actionText;
-            actionDiv.style.color = actionColor;
+              // BUG 4 FIX: s2_penalty and nifty_base_target could be null/undefined if the
+              // engine skips those diagnostics in Stage 1. Guard with ?? 0 before .toFixed().
+              document.getElementById('diag-score').textContent = d.diagnostics.onset_score ?? '--';
+              document.getElementById('diag-penalty').textContent = '-' + ((d.diagnostics.s2_penalty ?? 0)).toFixed(1) + '% (time adj)';
+              document.getElementById('diag-dd').textContent = (d.diagnostics.current_dd ?? '--') + '%';
+              document.getElementById('diag-base').textContent = ((d.nifty_base_target ?? 0)).toFixed(1) + '%';
 
-            const pbBSize = document.getElementById('pb-b-size');
-            if (pbBSize) pbBSize.textContent = d.beta_adjusted_target.toFixed(1) + '% of Nifty notional (v3.2)';
+              // --- Actionable Advice Line ---
+              let actionText = "";
+              let actionColor = "";
+              if (d.active_stage.includes("De-escalation Blocked")) {
+                actionText = "🟡 Hold your hedge — the market hasn't recovered enough to reduce it yet. Check again in a few days.";
+                actionColor = "var(--amber)";
+              } else if (d.active_stage.includes("Stage 3")) {
+                actionText = "🔴 Hedge immediately — short Nifty futures or buy ATM puts at the % shown above. Do not delay.";
+                actionColor = "var(--red)";
+              } else if (d.beta_adjusted_target > 25) {
+                actionText = "⚠️ Buy ATM Nifty put options at the % shown above. Roll monthly while signals remain active.";
+                actionColor = "var(--amber)";
+              } else {
+                actionText = "✅ No action needed — keep your 20% debt + 10% gold buffer in place and rebalance quarterly.";
+                actionColor = "var(--green)";
+              }
 
-            const badge = document.getElementById('v3-stage-badge');
-            if (d.active_stage.includes("Stage 3")) {
-              badge.style.background = "var(--red-bg)"; badge.style.color = "var(--red)"; badge.style.borderColor = "rgba(239,68,68,0.2)";
-            } else if (d.active_stage.includes("Stage 2")) {
-              badge.style.background = "var(--amber-bg)"; badge.style.color = "var(--amber)"; badge.style.borderColor = "rgba(245,158,11,0.2)";
-            } else {
-              badge.style.background = "var(--primary-bg)"; badge.style.color = "var(--primary)"; badge.style.borderColor = "rgba(37,99,235,0.2)";
-            }
+              let actionDiv = document.getElementById('v3-action-advise');
+              if (!actionDiv) {
+                actionDiv = document.createElement('div');
+                actionDiv.id = 'v3-action-advise';
+                actionDiv.style.cssText = "font-size: 13px; font-weight: 600; margin-top: 6px; letter-spacing: -0.01em;";
+                document.getElementById('v3-target-val').parentNode.appendChild(actionDiv);
+              }
+              actionDiv.textContent = actionText;
+              actionDiv.style.color = actionColor;
 
-            // --- DYNAMIC MATH BREAKDOWN (New Visuals) ---
-            const breakdownEl = document.getElementById('v3-math-breakdown');
-            let mathHtml = '';
+              const pbBSize = document.getElementById('pb-b-size');
+              if (pbBSize) pbBSize.textContent = d.beta_adjusted_target.toFixed(1) + '% of Nifty notional (v3.2)';
 
-            if (d.active_stage.includes("Stage 2") || d.active_stage.includes("Stage 3")) {
-              const vix = live.vix ?? 18.5;
-              const dd = d.diagnostics.current_dd;
-              const penalty = Math.abs(parseFloat(d.diagnostics.s2_penalty) || 0);
+              // ── Stage display: plain-English, action-first descriptions ──
+              const STAGE_MAP = {
+                "Stage 1 — Onset": {
+                  label: "⚡ Stage 1 — Early Warning: Watch Closely",
+                  desc: "Stress signals are rising but no confirmed fall yet. Start building a small protective position (Strategy B) — buy ATM Nifty puts at the % shown above. Keep your core debt & gold buffer (Strategy A) topped up. For a hedge sized to your exact holdings, use the <a href='/portfolio' style='color:inherit;font-weight:700;text-decoration:underline;'>Portfolio Engine →</a>",
+                  bg: "var(--primary-bg)", color: "var(--primary)", border: "rgba(37,99,235,0.25)"
+                },
+                "Stage 2 — Active Phase": {
+                  label: "⚠️ Stage 2 — Market Falling: Act Now",
+                  desc: "The Nifty is in a confirmed drawdown and volatility is elevated. Buy ATM Nifty put options covering the % shown above of your Nifty exposure. Roll each month as long as signals stay active. Do NOT wait — each day of delay increases unprotected loss. For a beta-adjusted hedge sized to your actual portfolio, use the <a href='/portfolio' style='color:inherit;font-weight:700;text-decoration:underline;'>Portfolio Engine →</a>",
+                  bg: "var(--amber-bg)", color: "var(--amber)", border: "rgba(245,158,11,0.3)"
+                },
+                "Stage 3: Escalated (MAJOR minimum)": {
+                  label: "🔴 Stage 3 — Major Crash: Maximum Hedge",
+                  desc: "The market has fallen more than 20% from its peak. The engine has locked the hedge at a minimum of 75% regardless of other signals. If you haven't hedged yet, do it immediately — short Nifty futures or buy puts. Every % of unhedged exposure is real money at risk. Get your personalised hedge sizing from the <a href='/portfolio' style='color:inherit;font-weight:700;text-decoration:underline;'>Portfolio Engine →</a>",
+                  bg: "var(--red-bg)", color: "var(--red)", border: "rgba(239,68,68,0.3)"
+                },
+                "Stage 3: Escalated (SEVERE)": {
+                  label: "🔴 Stage 3 — Severe Crisis: Full Hedge Required",
+                  desc: "Panic conditions: the Nifty is falling fast AND volatility has spiked sharply. The engine has deployed the maximum hedge. If you are not yet hedged, execute immediately — short Nifty futures or buy ATM puts. Every hour matters in conditions like this. Get your personalised hedge sizing from the <a href='/portfolio' style='color:inherit;font-weight:700;text-decoration:underline;'>Portfolio Engine →</a>",
+                  bg: "var(--red-bg)", color: "var(--red)", border: "rgba(239,68,68,0.3)"
+                },
+                "Stage 3: Escalated (SEVERE unconditional)": {
+                  label: "🔴 Stage 3 — Deep Crash: 100% Hedge, No Exceptions",
+                  desc: "The market has fallen more than 25% from its peak. The engine has set the hedge to 100% and will not reduce it until a full recovery is confirmed. Maintain your full hedge position. Do not reduce it based on short-term bounces — they are often temporary. Get your personalised hedge sizing from the <a href='/portfolio' style='color:inherit;font-weight:700;text-decoration:underline;'>Portfolio Engine →</a>",
+                  bg: "var(--red-bg)", color: "var(--red)", border: "rgba(239,68,68,0.3)"
+                },
+                "Stage 3: De-escalation Blocked (Gate closed)": {
+                  label: "🟡 Stage 3 — Recovery Unconfirmed: Hold Your Hedge",
+                  desc: "The market has bounced but the recovery is not yet confirmed — either less than 50% of the fall has been recovered, or volatility has not stayed low for 10 consecutive days. Do NOT reduce your hedge yet. Hold it until the gate clears. Removing it too early is the most common mistake in crash recoveries. For a personalised exit plan based on your portfolio beta, use the <a href='/portfolio' style='color:inherit;font-weight:700;text-decoration:underline;'>Portfolio Engine →</a>",
+                  bg: "rgba(245,158,11,0.15)", color: "var(--amber)", border: "rgba(245,158,11,0.4)"
+                },
+              };
+              const stageInfo = STAGE_MAP[d.active_stage] || {
+                label: "⏳ Initialising — Reading Market Conditions",
+                desc: "The engine is reading current market data. Stage will update in a moment. If this persists, check that the backend is running and data feeds are active.",
+                bg: "var(--bg3)", color: "var(--muted)", border: "var(--border)"
+              };
+              const badge = document.getElementById('v3-stage-badge');
+              badge.style.background = stageInfo.bg;
+              badge.style.color = stageInfo.color;
+              badge.style.borderColor = stageInfo.border;
+              document.getElementById('v3-stage-label').textContent = stageInfo.label;
+              document.getElementById('v3-stage-desc').innerHTML = stageInfo.desc;
 
-              const tBase = 12.5;
-              const tVix = 0.52 * vix;
-              const tDd = 0.48 * dd;
-              const tInt = 5.10 * (vix * dd / 100);
-              const maxC = Math.max(tBase, tVix, tDd, tInt, penalty, 0.1);
+              // --- DYNAMIC MATH BREAKDOWN (New Visuals) ---
+              const breakdownEl = document.getElementById('v3-math-breakdown');
+              let mathHtml = '';
 
-              const buildRow = (name, val, isNeg) => {
-                const w = Math.min(Math.abs(val) / maxC * 100, 100);
-                const hue = 120 - (w * 1.2);
-                const barColor = `hsl(${hue}, 98%, 50%)`;
-                const sign = isNeg ? '-' : '+';
-                return `
+              if (d.active_stage.includes("Stage 2") || d.active_stage.includes("Stage 3")) {
+                const vix = live.vix ?? 18.5;
+                const dd = d.diagnostics.current_dd;
+                const penalty = Math.abs(parseFloat(d.diagnostics.s2_penalty) || 0);
+
+                const tBase = 12.5;
+                const tVix = 0.52 * vix;
+                const tDd = 0.48 * dd;
+                const tInt = 5.10 * (vix * dd / 100);
+                const maxC = Math.max(tBase, tVix, tDd, tInt, penalty, 0.1);
+
+                const buildRow = (name, val, isNeg) => {
+                  const w = Math.min(Math.abs(val) / maxC * 100, 100);
+                  const hue = 120 - (w * 1.2);
+                  const barColor = `hsl(${hue}, 98%, 50%)`;
+                  const sign = isNeg ? '-' : '+';
+                  return `
                         <div class="feat-row" style="margin-bottom:8px;">
                             <div class="feat-name" style="width:140px; font-weight:500;">${name}</div>
                             <div class="feat-bar-wrap" style="background:var(--bg); border:1px solid var(--border);">
@@ -1557,9 +1711,9 @@
                             </div>
                             <div class="feat-coef" style="color:${barColor}; width:50px; font-weight:600;">${sign}${Math.abs(val).toFixed(1)}</div>
                         </div>`;
-              };
+                };
 
-              mathHtml = `
+                mathHtml = `
                         <div class="info-box-title" style="color:var(--amber);">Active Equation: Stage 2 (Linear Interaction)</div>
                         <div style="font-family:var(--font-mono); font-size:12px; color:var(--text); line-height:1.6; font-weight:500; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:8px;">
                             Alloc = 12.5 + 0.52·VIX + 0.48·DD% + 5.10·[VIX×DD%÷100] - Penalty
@@ -1570,13 +1724,13 @@
                         ${buildRow("VIX × DD% Panic", tInt, false)}
                         ${buildRow("Time Penalty", penalty, true)}
                     `;
-            } else {
-              const score = d.diagnostics.onset_score;
-              const buildRow = (name, weightStr) => {
-                const w = parseInt(weightStr);
-                const hue = 120 - (w * 1.2);
-                const barColor = `hsl(${hue}, 98%, 50%)`;
-                return `
+              } else {
+                const score = d.diagnostics.onset_score;
+                const buildRow = (name, weightStr) => {
+                  const w = parseInt(weightStr);
+                  const hue = 120 - (w * 1.2);
+                  const barColor = `hsl(${hue}, 98%, 50%)`;
+                  return `
                         <div class="feat-row" style="margin-bottom:8px;">
                             <div class="feat-name" style="width:140px; font-weight:500;">${name}</div>
                             <div class="feat-bar-wrap" style="background:var(--bg); border:1px solid var(--border);">
@@ -1584,9 +1738,9 @@
                             </div>
                             <div class="feat-coef" style="color:${barColor}; width:50px; font-weight:600;">${weightStr}</div>
                         </div>`;
-              };
+                };
 
-              mathHtml = `
+                mathHtml = `
                         <div class="info-box-title" style="color:var(--primary);">Active Equation: Stage 1 (Sigmoid Onset)</div>
                         <div style="font-family:var(--font-mono); font-size:12px; color:var(--text); line-height:1.6; font-weight:500; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:8px;">
                             1. Score = 0.48·RV + 0.25·Gap + 0.15·FPI + 0.12·VIX<br>
@@ -1598,27 +1752,143 @@
                         ${buildRow("FPI Outflow", "15%")}
                         ${buildRow("India VIX", "12%")}
                     `;
-            }
-            breakdownEl.innerHTML = mathHtml;
+              }
+              breakdownEl.innerHTML = mathHtml;
+              return; // Backend succeeded — skip JS fallback
+            } // end if (json.status === 'success')
+            // Backend returned status !== 'success' — fall through to JS fallback.
+          } catch (e) {
+            // BUG 2 FIX (catch): fetch threw a NetworkError (backend not running) or
+            // non-JSON response. Fall through to the JS fallback below — do NOT show
+            // "Offline" here because the JS engine can still produce a valid estimate.
+            console.warn("v3 backend unreachable, running JS fallback:", e.message);
           }
-        } catch (e) {
-          console.error("Failed to load v3.2 Engine", e);
-          // Show user-facing error state so the card doesn't silently stay at "--"
-          document.getElementById('v3-target-val').textContent = 'Offline';
-          document.getElementById('v3-target-val').style.color = 'var(--muted)';
-          const badge = document.getElementById('v3-stage-badge');
-          badge.textContent = 'BACKEND UNAVAILABLE';
-          badge.style.background = 'var(--bg3)';
-          badge.style.color = 'var(--muted)';
-          badge.style.borderColor = 'var(--border)';
-          // Show reset button hint if that's why it's failing
-          const breakdownEl = document.getElementById('v3-math-breakdown');
-          if (breakdownEl) breakdownEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:12px;">Engine offline or backend not running. Start the Flask server and refresh.</div>';
-        }
+        } // end if (!isStaticFile && !backendKnownDown)
+
+        // ── BUG 2 FIX: Pure-JS Fallback Engine ──────────────────────────────
+        // Runs whenever (a) page is opened as a static file, (b) backend is down,
+        // or (c) backend returned non-success status.
+        // Replicates the Stage 1 Lasso allocation formula used in the Flask engine.
+        // This ensures the Magnitude Hedging card always shows a meaningful value
+        // instead of staying at "--%" or showing "Offline".
+        (function runJsFallback() {
+          try {
+            const vix = live.vix ?? 17.9;
+            const ddSignal = live.dmaGap != null ? Math.max(0, -live.dmaGap) : 1.3;
+            const fpi = live.fpiWeekly ?? -1200;
+
+            // Stage 1 onset score (weights match backend calculate_v3_magnitude_hedge)
+            // Score = 0.48·RV + 0.25·|gap| + 0.15·FPI_flag + 0.12·VIX_norm
+            const rvNorm = Math.min(vix / 60, 1);
+            const gapNorm = Math.min(ddSignal / 20, 1);
+            const fpiFlagNorm = fpi < -5000 ? 1 : (fpi < 0 ? Math.abs(fpi) / 5000 : 0);
+            const vixNorm = Math.min(vix / 40, 1);
+            const onsetScore = Math.round(
+              (0.48 * rvNorm + 0.25 * gapNorm + 0.15 * fpiFlagNorm + 0.12 * vixNorm) * 100
+            );
+
+            // Sigmoid allocation (Stage 1): floor 10% + three sigmoid steps at 25/50/70
+            const sigmoid = (x, k) => 1 / (1 + Math.exp(-0.15 * (x - k)));
+            const baseAlloc = 10 + 30 * sigmoid(onsetScore, 25)
+              + 30 * sigmoid(onsetScore, 50)
+              + 30 * sigmoid(onsetScore, 70);
+
+            // Stage 2 upgrade: if Nifty is below 100-DMA by >2% AND vix >20, switch to
+            // linear interaction formula (mirrors backend stage logic).
+            let niftyTarget, activeStage;
+            if (ddSignal > 2 && vix > 20) {
+              const interact = (vix * ddSignal) / 100;
+              niftyTarget = 12.5 + 0.52 * vix + 0.48 * ddSignal + 5.10 * interact;
+              niftyTarget = Math.min(90, Math.max(10, niftyTarget));
+              activeStage = niftyTarget >= 75 ? "Stage 3: Escalated (MAJOR minimum)" : "Stage 2 — Active Phase";
+            } else {
+              niftyTarget = Math.min(90, Math.max(10, baseAlloc));
+              activeStage = "Stage 1 — Onset";
+            }
+
+            // Update UI — same DOM calls as the backend path
+            document.getElementById('v3-target-val').textContent = niftyTarget.toFixed(1) + '%';
+            document.getElementById('v3-target-val').style.color = '';
+
+            document.getElementById('diag-score').textContent = onsetScore;
+            document.getElementById('diag-penalty').textContent = '0.0% (time adj)';
+            document.getElementById('diag-dd').textContent = ddSignal.toFixed(1) + '%';
+            document.getElementById('diag-base').textContent = niftyTarget.toFixed(1) + '%';
+
+            // Stage badge — update the two child divs, NOT .textContent on the container
+            const STAGE_MAP_JS = {
+              "Stage 1 — Onset": {
+                label: "⚡ Stage 1 — Early Warning: Watch Closely",
+                desc: "Stress signals are rising but no confirmed fall yet. Start building a small protective position — buy ATM Nifty puts at the % shown above. Keep your core debt & gold buffer topped up. (JS estimate · start backend for full accuracy) For a hedge sized to your exact holdings, use the <a href='/portfolio' style='color:inherit;font-weight:700;text-decoration:underline;'>Portfolio Engine →</a>",
+                bg: "var(--primary-bg)", color: "var(--primary)", border: "rgba(37,99,235,0.25)"
+              },
+              "Stage 2 — Active Phase": {
+                label: "⚠️ Stage 2 — Market Falling: Act Now",
+                desc: "The Nifty is in a confirmed drawdown. Buy ATM Nifty put options at the % shown above. Roll each month while signals stay active. Do NOT wait — delay increases unprotected loss. (JS estimate · start backend for full accuracy) For a beta-adjusted hedge sized to your actual portfolio, use the <a href='/portfolio' style='color:inherit;font-weight:700;text-decoration:underline;'>Portfolio Engine →</a>",
+                bg: "var(--amber-bg)", color: "var(--amber)", border: "rgba(245,158,11,0.3)"
+              },
+              "Stage 3: Escalated (MAJOR minimum)": {
+                label: "🔴 Stage 3 — Major Crash: Maximum Hedge",
+                desc: "Market has fallen more than 20% from its peak. Hedge is locked at 75% minimum. If you haven't hedged yet, act immediately — short Nifty futures or buy puts. (JS estimate · start backend for full state-memory) Get your personalised hedge sizing from the <a href='/portfolio' style='color:inherit;font-weight:700;text-decoration:underline;'>Portfolio Engine →</a>",
+                bg: "var(--red-bg)", color: "var(--red)", border: "rgba(239,68,68,0.3)"
+              },
+            };
+            const stageInfo = STAGE_MAP_JS[activeStage] || {
+              label: "⏳ Calculating — Reading Market Conditions",
+              desc: "Engine is estimating. Stage will update once signals are loaded. (JS estimate · start backend for full accuracy)",
+              bg: "var(--bg3)", color: "var(--muted)", border: "var(--border)"
+            };
+            const badge = document.getElementById('v3-stage-badge');
+            badge.style.background = stageInfo.bg;
+            badge.style.color = stageInfo.color;
+            badge.style.borderColor = stageInfo.border;
+            document.getElementById('v3-stage-label').textContent = stageInfo.label;
+            document.getElementById('v3-stage-desc').innerHTML = stageInfo.desc;
+
+            // Action advice
+            let actionText = "✅ No action needed — keep your 20% debt + 10% gold buffer in place and rebalance quarterly.";
+            let actionColor = "var(--green)";
+            if (niftyTarget >= 75) { actionText = "🔴 Hedge immediately — short Nifty futures or buy ATM puts at the % shown above. Do not delay."; actionColor = "var(--red)"; }
+            else if (niftyTarget > 25) { actionText = "⚠️ Buy ATM Nifty put options at the % shown above. Roll monthly while signals remain active."; actionColor = "var(--amber)"; }
+            let actionDiv = document.getElementById('v3-action-advise');
+            if (!actionDiv) {
+              actionDiv = document.createElement('div');
+              actionDiv.id = 'v3-action-advise';
+              actionDiv.style.cssText = "font-size:13px; font-weight:600; margin-top:6px; letter-spacing:-0.01em;";
+              document.getElementById('v3-target-val').parentNode.appendChild(actionDiv);
+            }
+            actionDiv.textContent = actionText;
+            actionDiv.style.color = actionColor;
+
+            const pbBSize = document.getElementById('pb-b-size');
+            if (pbBSize) pbBSize.textContent = niftyTarget.toFixed(1) + '% of Nifty notional (JS est)';
+
+            // Math breakdown for JS fallback
+            const breakdownEl = document.getElementById('v3-math-breakdown');
+            if (breakdownEl) {
+              breakdownEl.innerHTML = `
+                <div class="info-box-title" style="color:var(--amber);">⚠ JS Fallback · Backend not reachable · Stage 1 (Sigmoid Onset)</div>
+                <div style="font-family:var(--font-mono); font-size:12px; color:var(--text); line-height:1.8; font-weight:500; margin-bottom:8px; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                  Score = 0.48·RV + 0.25·Gap + 0.15·FPI + 0.12·VIX &nbsp;→&nbsp; ${onsetScore}<br>
+                  Alloc = 10 + 30·σ(25) + 30·σ(50) + 30·σ(70) &nbsp;→&nbsp; ${niftyTarget.toFixed(1)}%
+                </div>
+                <div style="font-size:11px; color:var(--muted2);">Start the Flask backend (<code>python backend.py</code>) for full state-memory and de-escalation logic. All values shown are JS estimates without time-penalty or hysteresis.</div>`;
+            }
+          } catch (fallbackErr) {
+            console.error("v3 JS fallback also failed:", fallbackErr);
+            // Last resort — show a clear error state without crashing
+            const valEl = document.getElementById('v3-target-val');
+            if (valEl) { valEl.textContent = '--'; valEl.style.color = 'var(--muted)'; }
+            const lbl = document.getElementById('v3-stage-label');
+            const dsc = document.getElementById('v3-stage-desc');
+            if (lbl) lbl.textContent = 'ENGINE ERROR';
+            if (dsc) dsc.textContent = 'Check console for details.';
+          }
+        })();
       }
 
       // loadV3Engine is called by finalizeDataUpdate() after live data is ready.
-      // Do NOT call it here — live.fpiWeekly would still be the seed value.
+      // Do NOT call it here on script load — live.fpiWeekly would still be the seed value.
     </script>
 
     <div class="section-head">Strategic Execution Playbook</div>
@@ -1775,10 +2045,11 @@
   </main>
 
   <footer class="footer">
-    Institutional Risk Engine v3.8 — v3.7 + FIX: Scorecard avgPnl/wr/sharpe now computed dynamically from PNL_MATRIX
-    (same trueNet = g − c×rolls formula as heatmap). No more static hardcoded values that diverge from heatmap.
-    MEDIUM: FPI weekly signal, 100-DMA harmonised; LOW: 2010 episode corrected, 9 missing episodes added). Dynamic
-    signals, fully live tiles, 8-strategy heatmap, simulated-intraday disclosure.<br>
+    Institutional Risk Engine v3.9 — BUG FIXES: (1) applyBackendLiveData now copies prevClose_* fields so day-change
+    arrows work on the live/backend path; (2) loadV3Engine detects static-file/backend-down context and runs a pure-JS
+    Sigmoid+Linear fallback instead of showing "Offline"; (3) removed the `.textContent` call on the v3-stage-badge
+    container that wiped child divs before STAGE_MAP could update them (Bug 3); (4) null-guarded `s2_penalty` and
+    `nifty_base_target` with `?? 0` before `.toFixed()` to prevent crashes on Stage 1 responses (Bug 4).<br>
     Data: yfinance (Python backend) · dynamic 100-DMA · 5-min thread-safe cache · Fallbacks: Stooq / Frankfurter /
     ER-API.<br>
     Back-test: 1996–2026 · True Option Roll Count & TRI Opportunity Costs. FPI: Manual input from NSDL.com.<br>
@@ -1806,6 +2077,43 @@
       { name: "USD/INR Long (10%)", stratIndex: 7, liq: 7, simp: 7 },
     ];
 
+    function buildScorecardStats() {
+      const durLookup = {};
+      EPISODES.forEach(e => { durLookup[e.label] = e.dur; });
+
+      const stratVals = Array.from({ length: 8 }, () => []);
+
+      for (const [ep, cells] of Object.entries(PNL_MATRIX)) {
+        const dur = durLookup[ep] ?? 30;
+        const rolls = Math.max(1, Math.ceil(dur / 30));
+        cells.forEach((v, j) => {
+          if (!v || v.n == null) return;
+          const trueNet = v.g - v.c * rolls;
+          stratVals[j].push(trueNet);
+        });
+      }
+
+      let stats = SCORECARD_CFG.map(cfg => {
+        const vals = stratVals[cfg.stratIndex];
+        if (!vals || vals.length === 0) return { ...cfg, wr: 0, avgPnl: 0, sharpe: 0, score: 0 };
+        const avg = vals.reduce((s, x) => s + x, 0) / vals.length;
+        const wr = (vals.filter(x => x > 0).length / vals.length) * 100;
+        const variance = vals.reduce((s, x) => s + (x - avg) ** 2, 0) / vals.length;
+        const std = Math.sqrt(variance) || 1;
+        const sharpe = avg / std;
+
+        // The Universal Scoring Engine
+        const score = (wr * 0.25) + (Math.min(avg, 25) * 1.5) + (sharpe * 5.0) + cfg.liq + (cfg.simp * 0.8);
+        return { ...cfg, wr, avgPnl: avg, sharpe, score: parseFloat(score.toFixed(1)) };
+      });
+
+      // Automatically sort and assign rank based on the dynamic score
+      stats.sort((a, b) => b.score - a.score);
+      stats.forEach((s, i) => s.rank = i + 1);
+      return stats;
+    }
+
+    // SCORECARD is built below, after EPISODES and PNL_MATRIX are fully defined.
 
     // EPISODES — from drawdown_catalogue.csv. Key fixes:
     //   2010 Euro Debt: DD -27.89→-28.01, Duration 406→410, Recovery 682→684
@@ -1885,42 +2193,9 @@
     // FIX #1: All 8 column labels
     const STRAT_SHORT = ["ShortFut", "ATM Put", "Collar", "5%OTM", "Combined", "Debt Rot", "Gold 15%", "USDINR 10%"];
 
-    // buildScorecardStats defined here — both EPISODES and PNL_MATRIX are now fully in scope.
-    // This eliminates any risk of accessing uninitialised const bindings.
-    function buildScorecardStats() {
-      const durLookup = {};
-      EPISODES.forEach(e => { durLookup[e.label] = e.dur; });
-
-      const stratVals = Array.from({ length: 8 }, () => []);
-
-      for (const [ep, cells] of Object.entries(PNL_MATRIX)) {
-        const dur = durLookup[ep] ?? 30;
-        const rolls = Math.max(1, Math.ceil(dur / 30));
-        cells.forEach((v, j) => {
-          if (!v || v.n == null) return;
-          const trueNet = v.g - v.c * rolls;
-          stratVals[j].push(trueNet);
-        });
-      }
-
-      let stats = SCORECARD_CFG.map(cfg => {
-        const vals = stratVals[cfg.stratIndex];
-        if (!vals || vals.length === 0) return { ...cfg, wr: 0, avgPnl: 0, sharpe: 0, score: 0 };
-        const avg = vals.reduce((s, x) => s + x, 0) / vals.length;
-        const wr = (vals.filter(x => x > 0).length / vals.length) * 100;
-        const variance = vals.reduce((s, x) => s + (x - avg) ** 2, 0) / vals.length;
-        const std = Math.sqrt(variance) || 1;
-        const sharpe = avg / std;
-        const score = (wr * 0.25) + (Math.min(avg, 25) * 1.5) + (sharpe * 5.0) + cfg.liq + (cfg.simp * 0.8);
-        return { ...cfg, wr, avgPnl: avg, sharpe, score: parseFloat(score.toFixed(1)) };
-      });
-
-      stats.sort((a, b) => b.score - a.score);
-      stats.forEach((s, i) => s.rank = i + 1);
-      return stats;
-    }
-
-    // SCORECARD is now safe: called after EPISODES and PNL_MATRIX are fully defined.
+    // SCORECARD built here — EPISODES and PNL_MATRIX are now both in scope.
+    // buildScorecardStats() iterates PNL_MATRIX with the same trueNet = v.g − v.c × rolls
+    // formula used by renderHeatmap, so scorecard and heatmap always share one source of truth.
     const SCORECARD = buildScorecardStats();
 
     // ═══════════════════════════════════════════════════════════
@@ -1983,6 +2258,42 @@
     }
 
     // ═══════════════════════════════════════════════════════════
+    // TOP PROGRESS BAR
+    // ═══════════════════════════════════════════════════════════
+    const _pb = document.getElementById('topProgressBar');
+    let _pbTimer = null;
+    function progressStart() {
+      clearTimeout(_pbTimer);
+      _pb.classList.remove('done');
+      _pb.style.width = '0%';
+      // Small rAF delay so the browser paints the 0% state before animating
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          _pb.classList.add('running');
+          _pb.style.width = '72%';   // advance to 72% — stops here until done
+        });
+      });
+    }
+    function progressDone() {
+      clearTimeout(_pbTimer);
+      _pb.style.width = '100%';
+      _pb.classList.remove('running');
+      _pb.classList.add('done');
+      _pbTimer = setTimeout(() => {
+        _pb.classList.remove('done');
+        _pb.style.width = '0%';
+      }, 650);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SHIMMER REMOVAL — called once per tile when real data lands
+    // ═══════════════════════════════════════════════════════════
+    function clearShimmer() {
+      document.querySelectorAll('.tile-value.shimmer, .tile-status.shimmer, .verdict-title.shimmer')
+        .forEach(el => el.classList.remove('shimmer'));
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // BACKEND FETCH
     // ═══════════════════════════════════════════════════════════
     const BACKEND_ENDPOINT = '/api/live';
@@ -1998,9 +2309,24 @@
 
     function applyBackendLiveData(data) {
       if (!data) return false;
+      // Copy all live market fields the backend provides
       ['nifty', 'vix', 'usdinr', 'goldUSD', 'brent', 'goldINR', 'ytd', 'dmaGap', 'dma_used'].forEach(k => {
         if (data[k] != null) live[k] = data[k];
       });
+      // BUG 1 FIX: also copy prevClose_* fields so the day-change arrows (changeArrow())
+      // work correctly when the backend path is taken. These are produced by get_prev_close()
+      // in fetch_live_data() and were previously silently ignored here.
+      ['prevClose_nifty', 'prevClose_vix', 'prevClose_usdinr',
+        'prevClose_goldUSD', 'prevClose_brent', 'prevClose_goldINR'].forEach(k => {
+          if (data[k] != null) {
+            // Populate live.open with prev-close values so change arrows show session delta.
+            // live.open is normally set once on first tile update; the backend's prev-close
+            // is a higher-quality signal (actual prior-day close vs the seeded-open proxy).
+            if (!live.open) live.open = {};
+            const tileKey = k.replace('prevClose_', '');  // e.g. "nifty", "vix", "goldUSD"
+            live.open[tileKey] = data[k];
+          }
+        });
       live.dataSource = 'live';
       return true;
     }
@@ -2068,6 +2394,7 @@
     async function fetchAll() {
       const btn = document.getElementById('refreshBtn');
       btn.classList.add('spinning');
+      progressStart();
       try {
         const backendData = await fetchBackendLive();
         if (backendData && applyBackendLiveData(backendData)) {
@@ -2097,6 +2424,7 @@
         finalizeDataUpdate('seeded');
       } finally {
         btn.classList.remove('spinning');
+        progressDone();
       }
     }
 
@@ -2110,6 +2438,9 @@
         bar.className = 'data-status-bar seeded'; bar.textContent = 'SEEDED · Offline';
       }
       live.dataSource = sourceType;
+
+      // Remove shimmer placeholders now that data (or fallback) is confirmed
+      clearShimmer();
 
       updateTiles();
       updateSignals();
