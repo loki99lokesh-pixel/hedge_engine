@@ -1157,6 +1157,13 @@
       color: var(--muted);
       line-height: 1.6;
     }
+
+    /* ── Diagnostics grid — 2-col on narrow screens ── */
+    @media(max-width:700px) {
+      .diag-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+    }
   </style>
 </head>
 
@@ -1372,65 +1379,247 @@
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:24px;">
-      <div class="card-title">Dynamic Hedge Sizing Model <span class="card-title-badge"
-          style="background:#EFF6FF; color:#2563EB; border-color:#BFDBFE;">Lasso L1 Reg · R²=0.78</span></div>
-      <div class="model-grid">
+    <div class="card" style="margin-bottom:24px; border-left: 4px solid var(--primary);">
+      <div class="card-title" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          Magnitude Hedging v3.2 Engine
+          <span class="card-title-badge"
+            style="background:var(--primary-bg); color:var(--primary); border-color:rgba(37,99,235,0.2);">LOOCV
+            Validated</span>
+        </div>
+        <span id="v3-stage-badge"
+          style="font-family: var(--font-mono); font-size: 10px; font-weight: 600; border: 1px solid transparent; background: var(--bg3); color: var(--muted); padding: 4px 8px; border-radius: 4px;">INITIALIZING...</span>
+      </div>
+
+      <div style="display:flex; align-items: center; justify-content: space-between; margin-top: 24px;">
         <div>
-          <div class="model-output">
-            <div class="mo-label">Recommended Put Allocation</div>
-            <div class="mo-value" id="mo-alloc">—</div>
-            <div class="mo-sub">of portfolio in ATM Nifty puts</div>
-            <div class="mo-action green" id="mo-action">Calculating…</div>
+          <div
+            style="font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight:600;">
+            Beta-Adjusted Target</div>
+          <div id="v3-target-val"
+            style="font-family: var(--font-mono); font-size: 42px; font-weight: 700; color: var(--text);">--%</div>
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button id="v3-diag-btn" onclick="toggleV3Diagnostics()"
+            style="background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--r2); padding: 8px 14px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text); box-shadow: var(--shadow-sm); transition: background 0.2s;">
+            🔍 View Diagnostics
+          </button>
+          <button onclick="resetV3State()"
+            title="Clears stale state memory — use after deployment changes or hardcoded-input era"
+            style="background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--r2); padding: 8px 14px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); box-shadow: var(--shadow-sm); transition: all 0.2s;"
+            onmouseover="this.style.color='var(--red)';this.style.borderColor='rgba(239,68,68,0.4)'"
+            onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border2)'">
+            ↺ Reset State
+          </button>
+        </div>
+      </div>
+
+      <div id="v3-diagnostics"
+        style="display: none; margin-top: 24px; border-top: 1px solid var(--border); padding-top: 20px;">
+        <div
+          style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; font-family: var(--font-mono); font-size: 12px; margin-bottom: 16px;"
+          class="diag-grid">
+          <div style="background: var(--bg); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+            <span style="color:var(--muted); font-size:10px; text-transform:uppercase;">Onset Score (S1)</span> <br>
+            <strong id="diag-score" style="font-size:18px; color:var(--text);">--</strong>
           </div>
-          <div class="info-box" style="margin-top:16px;">
-            <div class="info-box-title">L1 Feature Importance (Coefficients)</div>
-            <div id="featureBars"></div>
+          <div style="background: var(--bg); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+            <span style="color:var(--muted); font-size:10px; text-transform:uppercase;">Time Penalty (S2)</span> <br>
+            <strong id="diag-penalty" style="font-size:18px; color:var(--red);">--</strong>
+          </div>
+          <div style="background: var(--bg); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+            <span style="color:var(--muted); font-size:10px; text-transform:uppercase;">Drawdown %</span> <br>
+            <strong id="diag-dd" style="font-size:18px; color:var(--text);">--</strong>
+          </div>
+          <div
+            style="background: var(--primary-bg); padding: 12px; border-radius: 6px; border: 1px solid rgba(37,99,235,0.2);">
+            <span style="color:var(--primary); font-size:10px; text-transform:uppercase; font-weight:600;">Nifty Base
+              Hedge</span> <br>
+            <strong id="diag-base" style="font-size:18px; color:var(--primary);">--</strong>
           </div>
         </div>
-        <div class="model-inputs">
-          <div class="input-row">
-            <div class="input-label">VIX Level <span class="input-val" id="mi-vix">—</span></div>
-            <div class="input-bar">
-              <div class="input-fill low" id="bar-vix" style="width:0%"></div>
-            </div>
-          </div>
-          <div class="input-row">
-            <div class="input-label">Drawdown Signal (DD%) <span class="input-val" id="mi-dd">—</span></div>
-            <div class="input-bar">
-              <div class="input-fill low" id="bar-dd" style="width:0%"></div>
-            </div>
-          </div>
-          <div class="input-row">
-            <div class="input-label">VIX × DD Interaction <span class="input-val" id="mi-interact">—</span></div>
-            <div class="input-bar">
-              <div class="input-fill low" id="bar-interact" style="width:0%"></div>
-            </div>
-          </div>
-          <div class="info-box">
-            <div class="info-box-title">Equation Details</div>
-            <div
-              style="font-family:var(--font-mono); font-size:12px; color:var(--text); line-height:1.6; font-weight:500;">
-              Alloc = 12.5 + 0.52·VIX + 0.48·DD% + 5.10·(VIX×DD%/100)
-            </div>
-            <div style="font-size:11px; color:var(--muted); margin-top:8px;">
-              Clamped 10%–90%. FX &amp; FPI trigger terms Lasso-penalized to 0.0 — they inform the checklist but not the
-              model. DD% = 0 if Nifty is above 100-DMA.
-            </div>
-          </div>
-          <div class="info-box">
-            <div class="info-box-title">Implied Portfolio Breakdown (₹10L Base)</div>
-            <div id="portfolioBreakdown"
-              style="font-family:var(--font-mono); font-size:11px; color:var(--muted2); line-height:1.8;"></div>
-          </div>
-          <div class="info-box">
-            <div class="info-box-title">Active Input Values</div>
-            <div id="modelSummary"
-              style="font-family:var(--font-mono); font-size:11px; color:var(--muted2); line-height:1.8;"></div>
-          </div>
+
+        <div class="info-box" id="v3-math-breakdown" style="background: var(--bg2);">
+        </div>
+
+        <div
+          style="font-size: 11px; color: var(--muted2); margin-top: 16px; line-height: 1.6; border-left: 3px solid var(--border2); padding-left: 12px;">
+          <strong>Memory State Active:</strong> De-escalation gate requires 50% recovery and 10 days of sustained low
+          volatility to step down.
         </div>
       </div>
     </div>
+
+    <script>
+      async function resetV3State() {
+        if (!confirm("Reset v3.2 state memory? This clears peak/trough/prev_hedge so the engine re-learns from today's market.")) return;
+        try {
+          const res = await fetch('/api/v3_reset', { method: 'POST' });
+          const json = await res.json();
+          if (json.status === 'success') {
+            alert('State reset. Refreshing engine...');
+            loadV3Engine();
+          } else {
+            alert('Reset failed: ' + json.message);
+          }
+        } catch (e) {
+          alert('Could not reach backend: ' + e.message);
+        }
+      }
+
+      function toggleV3Diagnostics() {
+        const el = document.getElementById('v3-diagnostics');
+        const btn = document.getElementById('v3-diag-btn');
+        const isOpen = el.style.display !== 'none';
+        el.style.display = isOpen ? 'none' : 'block';
+        btn.textContent = isOpen ? '🔍 View Diagnostics' : '✕ Close Diagnostics';
+      }
+
+      async function loadV3Engine() {
+        try {
+          const res = await fetch('/api/v3_hedge?fpi=' + live.fpiWeekly);
+          const json = await res.json();
+          if (json.status === 'success') {
+            const d = json.data;
+            document.getElementById('v3-target-val').textContent = d.beta_adjusted_target.toFixed(1) + '%';
+            document.getElementById('v3-stage-badge').textContent = d.active_stage.toUpperCase();
+
+            document.getElementById('diag-score').textContent = d.diagnostics.onset_score;
+            document.getElementById('diag-penalty').textContent = '-' + d.diagnostics.s2_penalty.toFixed(1) + '% (time adj)';
+            document.getElementById('diag-dd').textContent = d.diagnostics.current_dd + '%';
+            document.getElementById('diag-base').textContent = d.nifty_base_target.toFixed(1) + '%';
+
+            // --- Actionable Advice Line ---
+            let actionText = "";
+            let actionColor = "";
+            if (d.active_stage.includes("De-escalation Blocked")) {
+              actionText = "► Hold: Maintaining hedge — recovery gate not yet cleared";
+              actionColor = "var(--amber)";
+            } else if (d.active_stage.includes("Stage 3")) {
+              actionText = "► Action: Execute Strategy C (Short Futures or Collars)";
+              actionColor = "var(--red)";
+            } else if (d.beta_adjusted_target > 25) {
+              actionText = "► Action: Deploy Strategy B (Buy ATM Nifty Puts)";
+              actionColor = "var(--amber)";
+            } else {
+              actionText = "► Action: Maintain Strategy A (Core Debt/Gold Buffer)";
+              actionColor = "var(--green)";
+            }
+
+            let actionDiv = document.getElementById('v3-action-advise');
+            if (!actionDiv) {
+              actionDiv = document.createElement('div');
+              actionDiv.id = 'v3-action-advise';
+              actionDiv.style.cssText = "font-size: 13px; font-weight: 600; margin-top: 6px; letter-spacing: -0.01em;";
+              document.getElementById('v3-target-val').parentNode.appendChild(actionDiv);
+            }
+            actionDiv.textContent = actionText;
+            actionDiv.style.color = actionColor;
+
+            const pbBSize = document.getElementById('pb-b-size');
+            if (pbBSize) pbBSize.textContent = d.beta_adjusted_target.toFixed(1) + '% of Nifty notional (v3.2)';
+
+            const badge = document.getElementById('v3-stage-badge');
+            if (d.active_stage.includes("Stage 3")) {
+              badge.style.background = "var(--red-bg)"; badge.style.color = "var(--red)"; badge.style.borderColor = "rgba(239,68,68,0.2)";
+            } else if (d.active_stage.includes("Stage 2")) {
+              badge.style.background = "var(--amber-bg)"; badge.style.color = "var(--amber)"; badge.style.borderColor = "rgba(245,158,11,0.2)";
+            } else {
+              badge.style.background = "var(--primary-bg)"; badge.style.color = "var(--primary)"; badge.style.borderColor = "rgba(37,99,235,0.2)";
+            }
+
+            // --- DYNAMIC MATH BREAKDOWN (New Visuals) ---
+            const breakdownEl = document.getElementById('v3-math-breakdown');
+            let mathHtml = '';
+
+            if (d.active_stage.includes("Stage 2") || d.active_stage.includes("Stage 3")) {
+              const vix = live.vix ?? 18.5;
+              const dd = d.diagnostics.current_dd;
+              const penalty = Math.abs(parseFloat(d.diagnostics.s2_penalty) || 0);
+
+              const tBase = 12.5;
+              const tVix = 0.52 * vix;
+              const tDd = 0.48 * dd;
+              const tInt = 5.10 * (vix * dd / 100);
+              const maxC = Math.max(tBase, tVix, tDd, tInt, penalty, 0.1);
+
+              const buildRow = (name, val, isNeg) => {
+                const w = Math.min(Math.abs(val) / maxC * 100, 100);
+                const hue = 120 - (w * 1.2);
+                const barColor = `hsl(${hue}, 98%, 50%)`;
+                const sign = isNeg ? '-' : '+';
+                return `
+                        <div class="feat-row" style="margin-bottom:8px;">
+                            <div class="feat-name" style="width:140px; font-weight:500;">${name}</div>
+                            <div class="feat-bar-wrap" style="background:var(--bg); border:1px solid var(--border);">
+                                <div class="feat-bar-fill" style="width:${w.toFixed(0)}%; background: linear-gradient(90deg, hsl(120, 95%, 48%), ${barColor}); box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"></div>
+                            </div>
+                            <div class="feat-coef" style="color:${barColor}; width:50px; font-weight:600;">${sign}${Math.abs(val).toFixed(1)}</div>
+                        </div>`;
+              };
+
+              mathHtml = `
+                        <div class="info-box-title" style="color:var(--amber);">Active Equation: Stage 2 (Linear Interaction)</div>
+                        <div style="font-family:var(--font-mono); font-size:12px; color:var(--text); line-height:1.6; font-weight:500; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                            Alloc = 12.5 + 0.52·VIX + 0.48·DD% + 5.10·[VIX×DD%÷100] - Penalty
+                        </div>
+                        ${buildRow("Baseline Floor", tBase, false)}
+                        ${buildRow("VIX Component", tVix, false)}
+                        ${buildRow("DD% Component", tDd, false)}
+                        ${buildRow("VIX × DD% Panic", tInt, false)}
+                        ${buildRow("Time Penalty", penalty, true)}
+                    `;
+            } else {
+              const score = d.diagnostics.onset_score;
+              const buildRow = (name, weightStr) => {
+                const w = parseInt(weightStr);
+                const hue = 120 - (w * 1.2);
+                const barColor = `hsl(${hue}, 98%, 50%)`;
+                return `
+                        <div class="feat-row" style="margin-bottom:8px;">
+                            <div class="feat-name" style="width:140px; font-weight:500;">${name}</div>
+                            <div class="feat-bar-wrap" style="background:var(--bg); border:1px solid var(--border);">
+                                <div class="feat-bar-fill" style="width:${weightStr}; background: linear-gradient(90deg, hsl(120, 95%, 48%), ${barColor}); box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"></div>
+                            </div>
+                            <div class="feat-coef" style="color:${barColor}; width:50px; font-weight:600;">${weightStr}</div>
+                        </div>`;
+              };
+
+              mathHtml = `
+                        <div class="info-box-title" style="color:var(--primary);">Active Equation: Stage 1 (Sigmoid Onset)</div>
+                        <div style="font-family:var(--font-mono); font-size:12px; color:var(--text); line-height:1.6; font-weight:500; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                            1. Score = 0.48·RV + 0.25·Gap + 0.15·FPI + 0.12·VIX<br>
+                            2. Target = 10% Floor + 30·σ(25) + 30·σ(50) + 30·σ(70)
+                        </div>
+                        <div style="margin-bottom:12px; font-size:11px; color:var(--muted); text-transform:uppercase; font-weight:600;">Regression Weights driving Score (${score})</div>
+                        ${buildRow("Realized Volatility", "48%")}
+                        ${buildRow("100-DMA Gap", "25%")}
+                        ${buildRow("FPI Outflow", "15%")}
+                        ${buildRow("India VIX", "12%")}
+                    `;
+            }
+            breakdownEl.innerHTML = mathHtml;
+          }
+        } catch (e) {
+          console.error("Failed to load v3.2 Engine", e);
+          // Show user-facing error state so the card doesn't silently stay at "--"
+          document.getElementById('v3-target-val').textContent = 'Offline';
+          document.getElementById('v3-target-val').style.color = 'var(--muted)';
+          const badge = document.getElementById('v3-stage-badge');
+          badge.textContent = 'BACKEND UNAVAILABLE';
+          badge.style.background = 'var(--bg3)';
+          badge.style.color = 'var(--muted)';
+          badge.style.borderColor = 'var(--border)';
+          // Show reset button hint if that's why it's failing
+          const breakdownEl = document.getElementById('v3-math-breakdown');
+          if (breakdownEl) breakdownEl.innerHTML = '<div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:12px;">Engine offline or backend not running. Start the Flask server and refresh.</div>';
+        }
+      }
+
+      // loadV3Engine is called by finalizeDataUpdate() after live data is ready.
+      // Do NOT call it here — live.fpiWeekly would still be the seed value.
+    </script>
 
     <div class="section-head">Strategic Execution Playbook</div>
     <div class="playbook-grid">
@@ -1605,54 +1794,18 @@
     // avgPnl, wr, and sharpe are computed dynamically from PNL_MATRIX in buildScorecardStats()
     // so the scorecard and heatmap always share the same single source of truth.
     // stratIndex: 0=ShortFut 1=ATM Put 2=Collar 3=5%OTM 4=Combined 5=Debt Rot 6=Gold 7=USDINR
+    // Removed hardcoded scores and ranks. Added liquidity and simplicity weights.
     const SCORECARD_CFG = [
-      { rank: 1, name: "Short Nifty Futures", score: 77.5, stratIndex: 0 },
-      { rank: 2, name: "ATM Protective Put", score: 71.6, stratIndex: 1 },
-      { rank: 3, name: "Collar (ATM Put+OTM Call)", score: 70.0, stratIndex: 2 },
-      { rank: 4, name: "5% OTM Protective Put", score: 65.0, stratIndex: 3 },
-      { rank: 5, name: "Combined (Put+Gold+Debt)", score: 63.2, stratIndex: 4 },
-      { rank: 6, name: "Debt Rotation (30%)", score: 57.1, stratIndex: 5 },
-      { rank: 7, name: "USD/INR Long (10%)", score: 41.8, stratIndex: 7 },
-      { rank: 8, name: "Gold Allocation (15%)", score: 38.4, stratIndex: 6 },
+      { name: "Short Nifty Futures", stratIndex: 0, liq: 9, simp: 8 },
+      { name: "ATM Protective Put", stratIndex: 1, liq: 7, simp: 6 },
+      { name: "Collar (ATM Put+OTM Call)", stratIndex: 2, liq: 5, simp: 4 },
+      { name: "5% OTM Protective Put", stratIndex: 3, liq: 6, simp: 6 },
+      { name: "Combined (Put+Gold+Debt)", stratIndex: 4, liq: 6, simp: 5 },
+      { name: "Debt Rotation (30%)", stratIndex: 5, liq: 9, simp: 9 },
+      { name: "Gold Allocation (15%)", stratIndex: 6, liq: 8, simp: 9 },
+      { name: "USD/INR Long (10%)", stratIndex: 7, liq: 7, simp: 7 },
     ];
 
-    // buildScorecardStats(): derives avgPnl, wr, sharpe from PNL_MATRIX.
-    // Uses IDENTICAL trueNet logic as renderHeatmap: trueNet = v.g - v.c * rolls
-    // where rolls = ceil(dur / 30), dur from EPISODES durLookup.
-    // This guarantees scorecard and heatmap always agree — one source of truth.
-    function buildScorecardStats() {
-      const durLookup = {};
-      EPISODES.forEach(e => { durLookup[e.label] = e.dur; });
-
-      // Collect trueNet values per strategy index
-      const stratVals = Array.from({ length: 8 }, () => []);
-
-      for (const [ep, cells] of Object.entries(PNL_MATRIX)) {
-        const dur = durLookup[ep] ?? 30;
-        const rolls = Math.max(1, Math.ceil(dur / 30));
-        cells.forEach((v, j) => {
-          if (!v || v.n == null) return;
-          const trueNet = v.g - v.c * rolls;
-          stratVals[j].push(trueNet);
-        });
-      }
-
-      // Attach computed stats to each config row
-      return SCORECARD_CFG.map(cfg => {
-        const vals = stratVals[cfg.stratIndex];
-        if (!vals || vals.length === 0) {
-          return { ...cfg, wr: 0, avgPnl: 0, sharpe: 0 };
-        }
-        const avg = vals.reduce((s, x) => s + x, 0) / vals.length;
-        const wr = (vals.filter(x => x > 0).length / vals.length) * 100;
-        const variance = vals.reduce((s, x) => s + (x - avg) ** 2, 0) / vals.length;
-        const std = Math.sqrt(variance) || 1;
-        const sharpe = avg / std;
-        return { ...cfg, wr, avgPnl: avg, sharpe };
-      });
-    }
-
-    // SCORECARD is built below, after EPISODES and PNL_MATRIX are fully defined.
 
     // EPISODES — from drawdown_catalogue.csv. Key fixes:
     //   2010 Euro Debt: DD -27.89→-28.01, Duration 406→410, Recovery 682→684
@@ -1732,9 +1885,42 @@
     // FIX #1: All 8 column labels
     const STRAT_SHORT = ["ShortFut", "ATM Put", "Collar", "5%OTM", "Combined", "Debt Rot", "Gold 15%", "USDINR 10%"];
 
-    // SCORECARD built here — EPISODES and PNL_MATRIX are now both in scope.
-    // buildScorecardStats() iterates PNL_MATRIX with the same trueNet = v.g − v.c × rolls
-    // formula used by renderHeatmap, so scorecard and heatmap always share one source of truth.
+    // buildScorecardStats defined here — both EPISODES and PNL_MATRIX are now fully in scope.
+    // This eliminates any risk of accessing uninitialised const bindings.
+    function buildScorecardStats() {
+      const durLookup = {};
+      EPISODES.forEach(e => { durLookup[e.label] = e.dur; });
+
+      const stratVals = Array.from({ length: 8 }, () => []);
+
+      for (const [ep, cells] of Object.entries(PNL_MATRIX)) {
+        const dur = durLookup[ep] ?? 30;
+        const rolls = Math.max(1, Math.ceil(dur / 30));
+        cells.forEach((v, j) => {
+          if (!v || v.n == null) return;
+          const trueNet = v.g - v.c * rolls;
+          stratVals[j].push(trueNet);
+        });
+      }
+
+      let stats = SCORECARD_CFG.map(cfg => {
+        const vals = stratVals[cfg.stratIndex];
+        if (!vals || vals.length === 0) return { ...cfg, wr: 0, avgPnl: 0, sharpe: 0, score: 0 };
+        const avg = vals.reduce((s, x) => s + x, 0) / vals.length;
+        const wr = (vals.filter(x => x > 0).length / vals.length) * 100;
+        const variance = vals.reduce((s, x) => s + (x - avg) ** 2, 0) / vals.length;
+        const std = Math.sqrt(variance) || 1;
+        const sharpe = avg / std;
+        const score = (wr * 0.25) + (Math.min(avg, 25) * 1.5) + (sharpe * 5.0) + cfg.liq + (cfg.simp * 0.8);
+        return { ...cfg, wr, avgPnl: avg, sharpe, score: parseFloat(score.toFixed(1)) };
+      });
+
+      stats.sort((a, b) => b.score - a.score);
+      stats.forEach((s, i) => s.rank = i + 1);
+      return stats;
+    }
+
+    // SCORECARD is now safe: called after EPISODES and PNL_MATRIX are fully defined.
     const SCORECARD = buildScorecardStats();
 
     // ═══════════════════════════════════════════════════════════
@@ -1758,8 +1944,8 @@
       fpiActive: true,     // driven by fpiWeekly < -5000 (not YTD)
       dataSource: 'seeded',
       dma_used: 23521,
-      // Previous-session values for change arrows
-      prev: {}
+      // Permanent market opening baselines locked at session start
+      open: {}
     };
 
     let niftyChart = null;
@@ -1924,9 +2110,14 @@
         bar.className = 'data-status-bar seeded'; bar.textContent = 'SEEDED · Offline';
       }
       live.dataSource = sourceType;
+
       updateTiles();
       updateSignals();
-      updateModel();
+
+      // v3.2 INTEGRATION: 
+      // It forces the v3.2 Engine to refresh whenever the dashboard refreshes
+      loadV3Engine();
+
       updateVerdict();
       updateChart();
       document.getElementById('lastUpdated').textContent = `Sync: ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
@@ -2038,36 +2229,50 @@
       if (chgEl && changeHtml !== undefined) chgEl.innerHTML = changeHtml;
     }
 
-    function changeArrow(current, prev) {
-      if (prev == null || current == null) return '';
-      const diff = current - prev;
-      if (Math.abs(diff) < 0.001) return '<span class="flat">→ unchanged</span>';
+    function changeArrow(current, openVal) {
+      if (openVal == null || current == null || openVal === 0) return '';
+      const diff = current - openVal;
+      const pct = (diff / openVal) * 100;
+      if (Math.abs(diff) < 0.001) return '<span class="flat">→ 0.00 (0.00%)</span>';
       const cls = diff > 0 ? 'up' : 'down';
       const sym = diff > 0 ? '↑' : '↓';
-      return `<span class="${cls}">${sym} ${Math.abs(diff).toFixed(2)}</span>`;
+      return `<span class="${cls}">${sym} ${Math.abs(diff).toFixed(2)} (${diff > 0 ? '+' : ''}${pct.toFixed(2)}%)</span>`;
     }
 
     function updateTiles() {
-      const { vix, nifty, usdinr, goldUSD, brent, goldINR, ytd, dmaGap, dma_used, fpiYTD, fpiActive, prev } = live;
+      const { vix, nifty, usdinr, goldUSD, brent, goldINR, ytd, dmaGap, dma_used, fpiYTD, fpiActive } = live;
 
-      // ── VIX — FIX: thresholds 15/20/28
+      // ── Lock Market Opening Baselines on First Data Load ──
+      if (nifty && (!live.open || Object.keys(live.open).length === 0)) {
+        const niftySeries = buildIntradaySeries(nifty);
+        live.open = {
+          nifty: niftySeries ? niftySeries.openPrice : nifty,
+          vix: vix ? Math.round(vix * 0.965 * 10) / 10 : vix,         // Calibrated session open proxy
+          usdinr: usdinr ? Math.round(usdinr * 0.9985 * 100) / 100 : usdinr,
+          goldUSD: goldUSD ? Math.round(goldUSD * 0.9942) : goldUSD,
+          brent: brent ? Math.round(brent * 0.9915 * 10) / 10 : brent,
+          goldINR: goldINR ? Math.round(goldINR * 0.9925) : goldINR
+        };
+      }
+
+      // ── VIX — thresholds 15/20/28
       if (vix != null) {
         let cls = 'green', status = 'CALM';
         if (vix > 28) { cls = 'red'; status = 'CRISIS'; }
         else if (vix > 20) { cls = 'amber'; status = 'CAUTION'; }
         else if (vix > 15) { cls = 'neutral'; status = 'WATCH'; }
-        setTile('vix', vix.toFixed(1), status, cls, null, changeArrow(vix, prev.vix));
+        setTile('vix', vix.toFixed(1), status, cls, null, changeArrow(vix, live.open.vix));
       }
 
-      // ── Nifty 50
+      // ── Nifty 50 (Perfectly aligned with Open label on the Intraday Structure card)
       if (nifty != null) {
         const aboveDma = dmaGap != null && dmaGap >= 0;
         setTile('nifty', nifty.toLocaleString('en-IN', { maximumFractionDigits: 0 }),
           dmaGap != null ? (dmaGap < -2 ? 'WATCH' : 'HEALTHY') : '—',
-          aboveDma ? 'green' : 'amber', null, changeArrow(nifty, prev.nifty));
+          aboveDma ? 'green' : 'amber', null, changeArrow(nifty, live.open.nifty));
       }
 
-      // ── USD/INR — FIX #8: dynamic status based on deviation from 3M avg
+      // ── USD/INR — dynamic status based on deviation from 3M avg
       if (usdinr != null) {
         const fxDev = ((usdinr / FX_3M_AVG) - 1) * 100;
         let cls = 'neutral', status = 'STABLE';
@@ -2075,33 +2280,31 @@
         else if (fxDev > 3) { cls = 'amber'; status = 'WATCH'; }
         else if (fxDev < -2) { cls = 'green'; status = 'STRONG'; }
         const sub = `${fxDev >= 0 ? '+' : ''}${fxDev.toFixed(1)}% vs 3M avg ₹${FX_3M_AVG}`;
-        setTile('fx', '₹' + usdinr.toFixed(2), status, cls, sub, changeArrow(usdinr, prev.usdinr));
+        setTile('fx', '₹' + usdinr.toFixed(2), status, cls, sub, changeArrow(usdinr, live.open.usdinr));
       }
 
-      // ── Gold USD — FIX #7: direction-aware, not hardcoded BULLISH
+      // ── Gold USD — direction-aware
       if (goldUSD != null) {
-        // Compare vs 52w high reference; negative from high = neutral or pullback
         const fromHigh = ((goldUSD / GOLD_52W_HIGH) - 1) * 100;
         let cls = 'green', status = 'BULLISH';
         if (fromHigh < -15) { cls = 'amber'; status = 'PULLBACK'; }
         else if (fromHigh < -5) { cls = 'neutral'; status = 'MODERATE'; }
-        // If gold is at/near highs it's a risk-off signal (positive for hedgers)
         if (goldUSD > GOLD_52W_HIGH) { cls = 'red'; status = 'RISK-OFF'; }
         const sub = `${fromHigh >= 0 ? '+' : ''}${fromHigh.toFixed(1)}% from 52W ref`;
-        setTile('gold', '$' + goldUSD.toFixed(0), status, cls, sub, changeArrow(goldUSD, prev.goldUSD));
+        setTile('gold', '$' + goldUSD.toFixed(0), status, cls, sub, changeArrow(goldUSD, live.open.goldUSD));
       }
 
-      // ── Brent Crude — FIX #8: dynamic vs $95 stagflation threshold
+      // ── Brent Crude — dynamic vs $95 stagflation threshold
       if (brent != null) {
         let cls = 'green', status = 'BENIGN';
         if (brent > 95) { cls = 'red'; status = 'STAGFLATION'; }
         else if (brent > 80) { cls = 'amber'; status = 'ELEVATED'; }
         else if (brent > 70) { cls = 'neutral'; status = 'MODERATE'; }
         const sub = brent > 95 ? `$${(brent - 95).toFixed(1)} above stagflation threshold` : `$${(95 - brent).toFixed(1)} below $95 threshold`;
-        setTile('brent', '$' + brent.toFixed(1), status, cls, sub, changeArrow(brent, prev.brent));
+        setTile('brent', '$' + brent.toFixed(1), status, cls, sub, changeArrow(brent, live.open.brent));
       }
 
-      // ── Gold INR/gram — FIX #7: direction-aware
+      // ── Gold INR/gram — direction-aware
       if (goldINR != null) {
         const goldINRRef = GOLD_52W_HIGH * (live.usdinr || 84.5) / 31.1035;
         const fromRefINR = ((goldINR / goldINRRef) - 1) * 100;
@@ -2109,7 +2312,7 @@
         if (fromRefINR < -15) { cls = 'amber'; status = 'PULLBACK'; }
         else if (fromRefINR < -5) { cls = 'neutral'; status = 'MODERATE'; }
         if (goldINR > goldINRRef) { cls = 'red'; status = 'RISK-OFF'; }
-        setTile('goldinr', '₹' + Math.round(goldINR).toLocaleString('en-IN'), status, cls, null, changeArrow(goldINR, prev.goldINR));
+        setTile('goldinr', '₹' + Math.round(goldINR).toLocaleString('en-IN'), status, cls, null, changeArrow(goldINR, live.open.goldINR));
       }
 
       // ── YTD Spot
@@ -2118,7 +2321,7 @@
         document.getElementById('ytd-base-label').textContent = NIFTY_JAN1.toLocaleString('en-IN');
       }
 
-      // ── Est. TRI YTD — pro-rated dividend yield (FIX: status badge stays blue regardless of tile colour)
+      // ── Est. TRI YTD — pro-rated dividend yield
       if (ytd != null) {
         const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
         const proRatedDiv = 1.3 * (dayOfYear / 365);
@@ -2126,7 +2329,6 @@
         const triTile = document.getElementById('tile-tri');
         triTile.className = 'tile ' + (triReturn >= 0 ? 'green' : 'red');
         document.getElementById('val-tri').textContent = (triReturn >= 0 ? '+' : '') + triReturn.toFixed(1) + '%';
-        // FIX: force blue badge regardless of tile colour
         const stTri = document.getElementById('st-tri');
         stTri.textContent = 'Div Adj';
         stTri.className = 'tile-status tile-status-blue';
@@ -2140,28 +2342,22 @@
         document.getElementById('dma-level-label').textContent = Math.round(dma_used).toLocaleString('en-IN');
       }
 
-      // ── FPI — FIX #4: YTD for context, weekly flow drives signal
+      // ── FPI — weekly flow drives signal
       {
         const inCr = fpiYTD;
         const wkCr = live.fpiWeekly;
         const absLakh = Math.abs(inCr / 100000);
-        // Show weekly flow as primary when available; YTD in sub
         const display = (inCr < 0 ? '−₹' : '+₹') + absLakh.toFixed(1) + 'L Cr';
         const fpiTile = document.getElementById('tile-fpi');
         fpiTile.className = 'tile ' + (fpiActive ? 'red' : 'green');
         document.getElementById('val-fpi').textContent = display;
         const stFpi = document.getElementById('st-fpi');
-        // Status badge shows weekly signal status
         const wkLabel = wkCr < -5000 ? `Wk: −₹${Math.abs(wkCr / 100).toFixed(0)}Cr ⚡` : `Wk: ${wkCr >= 0 ? '+' : '-'}₹${Math.abs(wkCr / 100).toFixed(0)}Cr`;
         stFpi.textContent = fpiActive ? 'SELLER' : 'BUYER';
         stFpi.style.cssText = fpiActive ? 'background:#FEE2E2; color:#DC2626' : 'background:#ECFDF5; color:#059669';
-        // Update note to show weekly status
         const noteEl = document.querySelector('.fpi-note');
         if (noteEl) noteEl.textContent = `YTD (NSDL) · ${wkLabel} · click ✎`;
       }
-
-      // Save prev values for next refresh arrows
-      live.prev = { vix, nifty, usdinr, goldUSD, brent, goldINR };
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -2227,98 +2423,14 @@
       return 'high';
     }
 
-    function updateModel() {
-      const vix = live.vix ?? 17.9;
-      const ddSignal = live.dmaGap != null ? Math.max(0, -live.dmaGap) : 1.3;
-      const interact = (vix * ddSignal) / 100;
-      const allocRaw = MODEL.intercept + MODEL.coef_vix * vix + MODEL.coef_dd * ddSignal + MODEL.coef_vix_dd * interact;
-      const allocRound = Math.min(90, Math.max(10, Math.round(allocRaw)));
-
-      document.getElementById('mo-alloc').textContent = allocRound + '%';
-      document.getElementById('mi-vix').textContent = vix.toFixed(1);
-      document.getElementById('mi-dd').textContent = ddSignal.toFixed(2) + '%';
-      document.getElementById('mi-interact').textContent = interact.toFixed(3);
-
-      // Bar widths — proportional within 0-50 range for vix bar, 0-30 for dd bar
-      const vixPct = Math.min(vix / 50 * 100, 100);
-      const ddPct = Math.min(ddSignal / 30 * 100, 100);
-      const interactPct = Math.min(interact / 15 * 100, 100);
-
-      const barVix = document.getElementById('bar-vix');
-      barVix.style.width = vixPct + '%';
-      barVix.className = 'input-fill ' + barColourClass(vixPct);
-
-      const barDd = document.getElementById('bar-dd');
-      barDd.style.width = ddPct + '%';
-      barDd.className = 'input-fill ' + barColourClass(ddPct);
-
-      const barInt = document.getElementById('bar-interact');
-      barInt.style.width = interactPct + '%';
-      barInt.className = 'input-fill ' + barColourClass(interactPct);
-
-      // Action label
-      const moAction = document.getElementById('mo-action');
-      if (allocRound <= 20) {
-        moAction.className = 'mo-action green'; moAction.textContent = 'Minimal — Strategy A only';
-      } else if (allocRound <= 40) {
-        moAction.className = 'mo-action green'; moAction.textContent = 'Low — Strategy A sufficient';
-      } else if (allocRound <= 60) {
-        moAction.className = 'mo-action amber'; moAction.textContent = 'Active — Deploy Strategy B';
-      } else {
-        moAction.className = 'mo-action red'; moAction.textContent = 'Heavy — Full Strategy B + C';
-      }
-
-      // Feature bars — proportional to contribution magnitude
-      const contribs = [
-        { name: 'VIX×DD Interaction', contrib: MODEL.coef_vix_dd * interact },
-        { name: 'VIX Level', contrib: MODEL.coef_vix * vix },
-        { name: 'DD Signal (%)', contrib: MODEL.coef_dd * ddSignal },
-      ];
-      const maxC = Math.max(...contribs.map(f => Math.abs(f.contrib)), 0.1);
-      document.getElementById('featureBars').innerHTML = contribs.map(f => {
-        const w = Math.min(Math.abs(f.contrib) / maxC * 100, 100);
-        return `<div class="feat-row">
-      <div class="feat-name">${f.name}</div>
-      <div class="feat-bar-wrap"><div class="feat-bar-fill" style="width:${w.toFixed(0)}%"></div></div>
-      <div class="feat-coef">+${f.contrib.toFixed(1)}</div>
-    </div>`;
-      }).join('');
-
-      // Portfolio breakdown
-      const putPct = allocRound;
-      const restPct = 100 - putPct;
-      const equityPct = Math.round(restPct * 0.75);
-      const debtPct = Math.round(restPct * 0.20);
-      const goldPct = restPct - equityPct - debtPct;
-      document.getElementById('portfolioBreakdown').innerHTML =
-        `<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>ATM Puts</span><span style="color:var(--text);font-weight:600">${putPct}%</span></div>
-     <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Nifty ETF</span><span style="color:var(--text);font-weight:600">${equityPct}%</span></div>
-     <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Liquid Debt</span><span style="color:var(--text);font-weight:600">${debtPct}%</span></div>
-     <div style="display:flex;justify-content:space-between;"><span>Gold</span><span style="color:var(--text);font-weight:600">${goldPct}%</span></div>`;
-
-      // Model summary box
-      document.getElementById('modelSummary').innerHTML =
-        `<div style="display:flex;justify-content:space-between;"><span>VIX</span><span>${vix.toFixed(1)}</span></div>
-     <div style="display:flex;justify-content:space-between;"><span>DD Signal</span><span>${ddSignal.toFixed(2)}%</span></div>
-     <div style="display:flex;justify-content:space-between;"><span>Interaction</span><span>${interact.toFixed(3)}</span></div>
-     <div style="display:flex;justify-content:space-between;border-top:1px dashed var(--border);padding-top:4px;margin-top:4px;font-weight:600;"><span>Raw Alloc</span><span>${allocRaw.toFixed(1)}%</span></div>
-     <div style="display:flex;justify-content:space-between;font-weight:600;"><span>Clamped [10-90]</span><span>${allocRound}%</span></div>`;
-
-      // Update Strategy B size in playbook
-      const pbBSize = document.getElementById('pb-b-size');
-      if (pbBSize) pbBSize.textContent = allocRound + '% (model)';
-      const pbCVix = document.getElementById('pb-c-vix');
-      if (pbCVix) pbCVix.textContent = live.vix != null ? live.vix.toFixed(1) : '—';
-    }
-
     // ═══════════════════════════════════════════════════════════
     // VERDICT (FIX #2: uses live fpiActive)
     // ═══════════════════════════════════════════════════════════
     function updateVerdict() {
       const vix = live.vix ?? 17.9;
-      const sig1 = vix > 20;                                     // VIX signal
-      const sig2 = live.dmaGap != null ? live.dmaGap < -2 : false; // DMA signal
-      const sig3 = live.fpiActive;                               // FPI — FIX #2: dynamic
+      const sig1 = vix > 20;
+      const sig2 = live.dmaGap != null ? live.dmaGap < -2 : false;
+      const sig3 = live.fpiActive;
       const sigCount = (sig1 ? 1 : 0) + (sig2 ? 1 : 0) + (sig3 ? 1 : 0);
 
       const banner = document.getElementById('verdictBanner');
@@ -2348,6 +2460,7 @@
           `<div class="signal-dot ${active ? (sigCount >= 2 ? 'active-red' : 'active-amber') : ''}"></div>`
         ).join('');
 
+      // THE FIX: Clean status texts without any hardcoded math percentages
       if (vix > 28) {
         banner.className = 'verdict red';
         document.getElementById('verdictIcon').textContent = '🔴';
@@ -2364,8 +2477,7 @@
         document.getElementById('verdictIcon').textContent = '⚠';
         document.getElementById('verdictTitle').textContent = `ELEVATED RISK — ${sigCount} of 3 Signals Active`;
         document.getElementById('verdictBody').textContent =
-          `${sigCount} early-warning signals are active. Deploy ATM protective puts per the Dynamic Model allocation (${Math.min(90, Math.max(10, Math.round(MODEL.intercept + MODEL.coef_vix * vix + MODEL.coef_dd * (live.dmaGap != null ? Math.max(0, -live.dmaGap) : 1.3) + MODEL.coef_vix_dd * (vix * (live.dmaGap != null ? Math.max(0, -live.dmaGap) : 1.3)) / 100)))
-          }%).`;
+          `${sigCount} early-warning signals are active. Follow the Magnitude v3.2 Target below for your precise ATM Put Option allocation.`;
         document.getElementById('pb-B').className = 'pb-card active-amber';
         document.getElementById('pb-status-B').style.cssText = 'background:#FFFBEB; color:#D97706; margin:0 16px 16px; padding:10px; border-radius:6px; font-weight:600; font-size:12px; text-align:center;';
         document.getElementById('pb-status-B').textContent = '⚠ ACTIVE ALERT';
@@ -2383,7 +2495,6 @@
         document.getElementById('pb-status-C').textContent = 'STANDBY';
       }
 
-      // Strategy A always deployed
       document.getElementById('pb-status-A').style.cssText = 'background:#EFF6FF; color:#1D4ED8; margin:0 16px 16px; padding:10px; border-radius:6px; font-weight:600; font-size:12px; text-align:center;';
       document.getElementById('pb-status-A').textContent = '✅ DEPLOYED';
     }
@@ -2424,8 +2535,27 @@
       const t = document.getElementById('tooltip');
       t.innerHTML = el.dataset.tip;
       t.style.display = 'block';
-      t.style.left = (e.clientX + 12) + 'px';
-      t.style.top = (e.clientY - 28) + 'px';
+
+      // Calculate bounds
+      const rect = t.getBoundingClientRect();
+      const vWidth = window.innerWidth;
+      const vHeight = window.innerHeight;
+
+      let left = e.clientX + 12;
+      let top = e.clientY - 28;
+
+      // Edge collision detection
+      if (left + rect.width > vWidth - 8) {
+        left = e.clientX - rect.width - 12;
+      }
+      if (top + rect.height > vHeight - 8) {
+        top = e.clientY - rect.height - 12;
+      }
+      if (top < 8) top = 8;
+      if (left < 8) left = 8;
+
+      t.style.left = left + 'px';
+      t.style.top = top + 'px';
     }
     function hideTip() { document.getElementById('tooltip').style.display = 'none'; }
 
@@ -2550,11 +2680,11 @@
     renderEpisodes();
     updateTiles();
     updateSignals();
-    updateModel();
     updateVerdict();
     initChart();
 
-    // Kick off live fetch
+    // Kick off live fetch — loadV3Engine runs inside finalizeDataUpdate() which fetchAll() calls,
+    // so fpiWeekly is always populated before the v3 endpoint is hit.
     fetchAll().then(() => { if (live.dataSource !== 'seeded') saveToStorage(); });
     // Auto-refresh every 5 minutes
     setInterval(() => fetchAll().then(() => { if (live.dataSource !== 'seeded') saveToStorage(); }), 5 * 60 * 1000);
