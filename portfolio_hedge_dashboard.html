@@ -1036,6 +1036,57 @@
       font-weight: 600;
     }
 
+    /* ── v3 Portfolio Engine card ── */
+    .v3p-stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted2);
+    }
+    .v3p-stat-row:last-child { border-bottom: none; }
+
+    .v3p-feat-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .v3p-feat-name {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted2);
+      width: 150px;
+      flex-shrink: 0;
+      font-weight: 500;
+    }
+    .v3p-feat-bar-wrap {
+      flex: 1;
+      height: 6px;
+      background: var(--bg3);
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .v3p-feat-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+    }
+    .v3p-feat-coef {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      width: 50px;
+      text-align: right;
+    }
+
+    @media(max-width:800px) {
+      .v3p-main-grid { grid-template-columns: 1fr !important; }
+      .v3p-diag-grid { grid-template-columns: repeat(2,1fr) !important; }
+    }
+
     /* ── Playbook (matches dashboard playbook-grid) ── */
     .playbook-grid {
       display: grid;
@@ -1509,7 +1560,74 @@
         </div>
       </div>
 
-      <!-- 7. Playbook -->
+      <!-- 7. Magnitude Hedge Engine — Portfolio-Scaled -->
+      <div class="section-head">Magnitude Hedging v3.2 — Portfolio-Adjusted Target</div>
+      <div class="card" id="v3PortCard" style="border-left: 4px solid var(--primary); margin-bottom:24px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-family:var(--font-head);font-weight:600;font-size:15px;color:var(--text);">Magnitude Hedging v3.2 Engine</span>
+            <span class="card-title-badge" style="background:var(--primary-bg);color:var(--primary);border-color:rgba(37,99,235,0.2);">LOOCV Validated</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span id="v3p-stage-badge" style="font-family:var(--font-mono);font-size:10px;font-weight:600;border:1px solid var(--border);background:var(--bg3);color:var(--muted);padding:4px 10px;border-radius:4px;">LOADING…</span>
+            <button onclick="toggleV3PortDiag()" id="v3p-diag-btn" style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:6px 12px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text);box-shadow:var(--shadow-sm);">🔍 Diagnostics</button>
+          </div>
+        </div>
+
+        <!-- Main output row -->
+        <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:16px; margin-top:20px;" class="v3p-main-grid">
+          <div style="background:var(--primary-bg);border:1px solid rgba(37,99,235,0.15);border-radius:var(--r);padding:18px 20px;text-align:center;">
+            <div style="font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;color:var(--primary);margin-bottom:6px;">β-Adj. Put Target</div>
+            <div id="v3p-target" style="font-family:var(--font-mono);font-size:40px;font-weight:700;color:var(--text);line-height:1;">--%</div>
+            <div style="font-size:11px;color:var(--muted2);margin-top:4px;">of portfolio in ATM Nifty puts</div>
+            <div id="v3p-action" style="font-size:12px;font-weight:600;margin-top:10px;padding:8px 12px;border-radius:var(--r2);background:var(--bg3);color:var(--muted);">Calculating…</div>
+          </div>
+          <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;">
+            <div style="font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Beta Scaling</div>
+            <div class="v3p-stat-row"><span>Nifty Base Target</span><span id="v3p-nifty-base" style="font-family:var(--font-mono);font-weight:700;">--%</span></div>
+            <div class="v3p-stat-row"><span>Your Portfolio β</span><span id="v3p-beta-used" style="font-family:var(--font-mono);font-weight:700;">--</span></div>
+            <div class="v3p-stat-row"><span>β-Adjusted Target</span><span id="v3p-beta-adj" style="font-family:var(--font-mono);font-weight:700;color:var(--primary);">--%</span></div>
+            <div class="v3p-stat-row" style="border:none;padding-top:10px;margin-top:4px;border-top:1px dashed var(--border);">
+              <span style="font-size:10px;color:var(--muted);">β &lt; 1 → smaller hedge needed</span>
+            </div>
+          </div>
+          <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;">
+            <div style="font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Live Inputs Used</div>
+            <div class="v3p-stat-row"><span>India VIX</span><span id="v3p-in-vix" style="font-family:var(--font-mono);font-weight:700;">--</span></div>
+            <div class="v3p-stat-row"><span>Current DD%</span><span id="v3p-in-dd" style="font-family:var(--font-mono);font-weight:700;">--</span></div>
+            <div class="v3p-stat-row"><span>Onset Score</span><span id="v3p-in-score" style="font-family:var(--font-mono);font-weight:700;">--</span></div>
+            <div class="v3p-stat-row" style="border:none;"><span>FPI Weekly</span><span id="v3p-in-fpi" style="font-family:var(--font-mono);font-weight:700;">--</span></div>
+          </div>
+        </div>
+
+        <!-- Expandable diagnostics -->
+        <div id="v3p-diag-body" style="display:none; margin-top:20px; border-top:1px solid var(--border); padding-top:20px;">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;" class="v3p-diag-grid">
+            <div style="background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);">
+              <span style="font-family:var(--font-mono);font-size:9px;text-transform:uppercase;color:var(--muted);">Onset Score (S1)</span><br>
+              <strong id="v3p-d-score" style="font-size:18px;color:var(--text);font-family:var(--font-mono);">--</strong>
+            </div>
+            <div style="background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);">
+              <span style="font-family:var(--font-mono);font-size:9px;text-transform:uppercase;color:var(--muted);">Time Penalty (S2)</span><br>
+              <strong id="v3p-d-penalty" style="font-size:18px;color:var(--red);font-family:var(--font-mono);">--</strong>
+            </div>
+            <div style="background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);">
+              <span style="font-family:var(--font-mono);font-size:9px;text-transform:uppercase;color:var(--muted);">Drawdown %</span><br>
+              <strong id="v3p-d-dd" style="font-size:18px;color:var(--text);font-family:var(--font-mono);">--</strong>
+            </div>
+            <div style="background:var(--primary-bg);padding:12px;border-radius:6px;border:1px solid rgba(37,99,235,0.2);">
+              <span style="font-family:var(--font-mono);font-size:9px;text-transform:uppercase;color:var(--primary);font-weight:600;">Nifty Base Hedge</span><br>
+              <strong id="v3p-d-base" style="font-size:18px;color:var(--primary);font-family:var(--font-mono);">--</strong>
+            </div>
+          </div>
+          <div id="v3p-math-breakdown" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:16px;font-size:12px;"></div>
+          <div style="font-size:11px;color:var(--muted2);margin-top:12px;border-left:3px solid var(--border2);padding-left:10px;line-height:1.6;">
+            <strong>De-escalation Gate:</strong> Requires ≥50% drawdown recovery <em>and</em> 10 consecutive days of VIX &lt; 20 + RV &lt; 22 before reducing the hedge target.
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. Playbook -->
       <div class="section-head">Your Personalised Playbook</div>
       <div class="playbook-grid" id="playbookGrid"></div>
 
@@ -1646,29 +1764,55 @@
       { name: "Cash / FD", assetClass: "cash_fd", sector: "", cap: "", alloc: 19, overrideBeta: null },
     ];
 
-    // ── Strategy data (from back-test v3.0) ──
+    // ═══════════════════════════════════════════════════════════════
+    // STATIC DATA — Back-test v3.1 (engine-aligned)
+    // All numbers match portfolio_hedge_engine.py STRATEGIES / EPISODE_PNL.
+    // STRATS and EPISODES must be defined before any function that references
+    // them so the data is available when runAnalysis() fires.
+    // ═══════════════════════════════════════════════════════════════
+
+    // Strategy order is S1 S2 S7 S3 S8 S6 S5 S4.
+    // EPISODE_PNL keys use this same key string so lookup is never positional.
     const STRATS = [
-      { key: "S1", name: "Short Nifty Futures", short: "ShortFut", wr: 100, avgPnl: 23.34, worst: 10.17, best: 59.86, drag: 0.20, score: 77.5, trigger: "c", trigLabel: "VIX > 28 (C)", note: "Full offset but unlimited upside sacrifice. Needs 25% margin buffer.", requires: "F&O account", betaScale: true },
-      { key: "S2", name: "ATM Protective Put", short: "ATM Put", wr: 100, avgPnl: 21.73, worst: 8.25, best: 57.33, drag: 1.20, score: 71.6, trigger: "b", trigLabel: "2-of-3 signals (B)", note: "Best protection for known catalyst. Cost scales with VIX.", requires: "F&O account", betaScale: true },
-      { key: "S7", name: "Collar (ATM Put + OTM Call)", short: "Collar", wr: 100, avgPnl: 23.03, worst: 9.45, best: 58.53, drag: 0.60, score: 70.0, trigger: "b", trigLabel: "Pre-event (B)", note: "Sells upside to fund put. Ideal for elections/budgets.", requires: "F&O account (2 legs)", betaScale: true },
-      { key: "S3", name: "5% OTM Protective Put", short: "5%OTM", wr: 100, avgPnl: 18.01, worst: 3.25, best: 54.06, drag: 0.70, score: 65.0, trigger: "b", trigLabel: "2-of-3 signals (B)", note: "Cheaper than ATM. First 5% loss unhedged. Good for deep crashes.", requires: "F&O account", betaScale: true },
-      { key: "S8", name: "Combined (Put+Gold+Debt)", short: "Combined", wr: 100, avgPnl: 16.83, worst: 6.26, best: 42.76, drag: 0.80, score: 63.2, trigger: "b", trigLabel: "2-of-3 signals (B)", note: "Diversified hedge. No single point of failure. Recommended for HNIs.", requires: "F&O + Demat + Debt fund", betaScale: true },
-      { key: "S6", name: "Debt Rotation 30%", short: "Debt30", wr: 100, avgPnl: 7.92, worst: 3.20, best: 19.52, drag: 0.10, score: 57.1, trigger: "a", trigLabel: "Always-on (A)", note: "100% win rate. Reduces equity beta + earns 6.5% p.a. Simplest hedge.", requires: "Liquid / overnight debt fund", betaScale: false },
-      { key: "S5", name: "USD/INR Long 10%", short: "USDINR", wr: 93.8, avgPnl: 0.59, worst: -0.04, best: 2.68, drag: 0.10, score: 41.8, trigger: "b", trigLabel: "INR stress", note: "94% win rate. Useful for FX-driven drawdowns.", requires: "International fund / USD FD", betaScale: false },
-      { key: "S4", name: "Gold Allocation 15%", short: "Gold15", wr: 68.8, avgPnl: 0.90, worst: -2.75, best: 5.77, drag: 0.05, score: 38.4, trigger: "a", trigLabel: "Always-on (A)", note: "Positive in 69% of drawdowns. Low cost. Global crisis hedge.", requires: "Gold ETF / SGB", betaScale: false },
+      // betaScale:true  → avgPnl / worst / best are Nifty-level %; multiply by portBeta for portfolio impact
+      // betaScale:false → values are already portfolio-level contributions; use as-is
+      { key: "S1", name: "Short Nifty Futures", short: "ShortFut", wr: 100, avgPnl: 22.40, worst: 9.97, best: 58.06, drag: 0.20, score: 76.3, trigger: "c", trigLabel: "VIX > 28 (C)", note: "Full offset but unlimited upside sacrifice. Needs 25% margin buffer.", requires: "F&O account", betaScale: true },
+      { key: "S2", name: "ATM Protective Put", short: "ATM Put", wr: 90.5, avgPnl: 12.30, worst: -1.01, best: 39.33, drag: 1.20, score: 55.8, trigger: "b", trigLabel: "2-of-3 signals (B)", note: "Strong protection for known catalysts. Not always positive in shallow drawdowns.", requires: "F&O account", betaScale: true },
+      { key: "S7", name: "Collar (ATM Put + OTM Call)", short: "Collar", wr: 100, avgPnl: 15.96, worst: 5.23, best: 45.03, drag: 0.60, score: 60.1, trigger: "b", trigLabel: "Pre-event (B)", note: "Sells upside to fund put. 100% win rate. Ideal for elections/budgets.", requires: "F&O account (2 legs)", betaScale: true },
+      { key: "S3", name: "5% OTM Protective Put", short: "5%OTM", wr: 95.2, avgPnl: 10.94, worst: -0.07, best: 40.56, drag: 0.70, score: 54.0, trigger: "b", trigLabel: "2-of-3 signals (B)", note: "Cheaper than ATM. First 5% loss unhedged. Good for deep crashes.", requires: "F&O account", betaScale: true },
+      { key: "S8", name: "Combined (Put+Gold+Debt)", short: "Combined", wr: 100, avgPnl: 12.12, worst: 5.28, best: 33.76, drag: 0.80, score: 56.8, trigger: "b", trigLabel: "2-of-3 signals (B)", note: "Diversified hedge. No single point of failure. Recommended for HNIs.", requires: "F&O + Demat + Debt fund", betaScale: true },
+      { key: "S6", name: "Debt Rotation 30%", short: "Debt30", wr: 100, avgPnl: 7.44, worst: 3.20, best: 18.62, drag: 0.10, score: 56.5, trigger: "a", trigLabel: "Always-on (A)", note: "100% win rate. Reduces equity beta + earns 6.5% p.a. Simplest hedge.", requires: "Liquid / overnight debt fund", betaScale: false },
+      { key: "S5", name: "USD/INR Long 10%", short: "USDINR", wr: 62.5, avgPnl: 0.22, worst: -0.44, best: 1.78, drag: 0.10, score: 33.5, trigger: "b", trigLabel: "INR stress", note: "Useful for FX-driven drawdowns. Limited standalone protection.", requires: "International fund / USD FD", betaScale: false },
+      { key: "S4", name: "Gold Allocation 15%", short: "Gold15", wr: 68.8, avgPnl: 0.66, worst: -3.03, best: 5.25, drag: 0.05, score: 38.0, trigger: "a", trigLabel: "Always-on (A)", note: "Positive in 69% of drawdowns. Low cost. Global crisis hedge.", requires: "Gold ETF / SGB", betaScale: false },
     ];
 
-    // Episode P&L table [S1,S2,S7,S3,S8,S6,S5,S4]
+    // Episode net P&L keyed by strategy key — eliminates fragile positional indexing.
+    // Values for betaScale:true strategies are Nifty-level net % (multiply by portBeta).
+    // Values for betaScale:false strategies are already portfolio-level net % (use as-is).
+    // null = strategy not available for that episode (pre-futures era for S1).
+    const EPISODE_PNL = {
+      "2000 Dot-com": { S1: 51.36, S2: 48.75, S7: 49.95, S3: 45.50, S8: 36.74, S6: 18.55, S5: null, S4: null },
+      "2004 Election": { S1: 29.94, S2: 28.16, S7: 29.36, S3: 24.44, S8: 19.04, S6: 9.64, S5: 0.02, S4: -1.47 },
+      "2008 GFC": { S1: 59.86, S2: 57.33, S7: 58.53, S3: 54.06, S8: 42.76, S6: 19.52, S5: 2.68, S4: 1.07 },
+      "2010 Euro Debt": { S1: 28.01, S2: 26.04, S7: 28.01, S3: 22.57, S8: 25.85, S6: 10.59, S5: 1.97, S4: 5.77 },
+      "2015 China": { S1: 22.52, S2: 20.99, S7: 22.52, S3: 17.31, S8: 18.32, S6: 8.67, S5: 1.05, S4: 2.04 },
+      "2018 IL&FS": { S1: 10.17, S2: 8.36, S7: 10.17, S3: 4.82, S8: 6.75, S6: 3.33, S5: 0.25, S4: 0.35 },
+      "2020 COVID": { S1: 38.44, S2: 37.09, S7: 38.44, S3: 33.30, S8: 27.77, S6: 11.90, S5: 0.69, S4: 1.29 },
+      "2024 FII Exodus": { S1: 15.77, S2: 14.63, S7: 15.77, S3: 10.70, S8: 13.11, S6: 5.58, S5: 0.44, S4: 2.07 },
+      "2026 Curr. DD": { S1: 15.18, S2: 14.33, S7: 15.18, S3: 10.16, S8: 12.09, S6: 5.02, S5: 0.54, S4: 1.58 },
+    };
+
+    // Episode metadata — keyed by same ep label used in EPISODE_PNL
     const EPISODES = [
-      { ep: "2000 Dot-com", dd: -51.36, dur: 588, rec: 818, pnl: [51.36, 48.75, 49.95, 45.50, 36.74, 18.55, null, null] },
-      { ep: "2004 Election", dd: -29.94, dur: 124, rec: 199, pnl: [29.94, 28.16, 29.36, 24.44, 19.04, 9.64, 0.02, -1.47] },
-      { ep: "2008 GFC", dd: -59.86, dur: 293, rec: 739, pnl: [59.86, 57.33, 58.53, 54.06, 42.76, 19.52, 2.68, 1.07] },
-      { ep: "2010 Euro Debt", dd: -28.01, dur: 410, rec: 684, pnl: [28.01, 26.04, 28.01, 22.57, 25.85, 10.59, 1.97, 5.77] },
-      { ep: "2015 China", dd: -22.52, dur: 359, rec: 383, pnl: [22.52, 20.99, 22.52, 17.31, 18.32, 8.67, 1.05, 2.04] },
-      { ep: "2018 IL&FS", dd: -10.17, dur: 53, rec: 123, pnl: [10.17, 8.36, 10.17, 4.82, 6.75, 3.33, 0.25, 0.35] },
-      { ep: "2020 COVID", dd: -38.44, dur: 69, rec: 231, pnl: [38.44, 37.09, 38.44, 33.30, 27.77, 11.90, 0.69, 1.29] },
-      { ep: "2024 FII Exodus", dd: -15.77, dur: 159, rec: 304, pnl: [15.77, 14.63, 15.77, 10.70, 13.11, 5.58, 0.44, 2.07] },
-      { ep: "2026 Curr. DD", dd: -15.18, dur: 87, rec: null, pnl: [15.18, 14.33, 15.18, 10.16, 12.09, 5.02, 0.54, 1.58] },
+      { ep: "2000 Dot-com", dd: -51.36, dur: 588, rec: 818 },
+      { ep: "2004 Election", dd: -29.94, dur: 124, rec: 199 },
+      { ep: "2008 GFC", dd: -59.86, dur: 293, rec: 739 },
+      { ep: "2010 Euro Debt", dd: -28.01, dur: 410, rec: 684 },
+      { ep: "2015 China", dd: -22.52, dur: 359, rec: 383 },
+      { ep: "2018 IL&FS", dd: -10.17, dur: 53, rec: 123 },
+      { ep: "2020 COVID", dd: -38.44, dur: 69, rec: 231 },
+      { ep: "2024 FII Exodus", dd: -15.77, dur: 159, rec: 304 },
+      { ep: "2026 Curr. DD", dd: -15.18, dur: 87, rec: null },
     ];
 
     // ═══════════════════════════════════════════════════════════════
@@ -1966,6 +2110,9 @@
       const t = setInterval(() => { prog = Math.min(prog + 10, 95); bar.style.width = prog + '%'; }, 40);
       setTimeout(() => { clearInterval(t); bar.style.width = '100%'; }, 500);
 
+      // Kick off the v3.2 magnitude engine immediately with this portfolio's beta
+      loadV3ForPortfolio(portBeta, portValue, window._liveFpiWeekly ?? -1200);
+
       // ── Metrics tiles ──
       const betaCls = portBeta > 1.2 ? 'red' : portBeta > 0.9 ? 'amber' : 'green';
       document.getElementById('metricsStrip').innerHTML = `
@@ -2012,8 +2159,9 @@
       ];
       document.getElementById('crashGrid').innerHTML = crashes.map(cs => {
         const portLoss = cs.dd * portBeta;
-        const portLossLow = cs.dd * portBetaHigh;  // worst case (higher beta = bigger loss)
-        const portLossHigh = cs.dd * portBetaLow;   // best case (lower beta = smaller loss)
+        // Higher beta → bigger loss on a negative return, so portBetaHigh gives worst case
+        const portLossWorstCase = cs.dd * portBetaHigh;  // most negative (highest beta)
+        const portLossBestCase = cs.dd * portBetaLow;   // least negative (lowest beta)
         const portLossINR = portValue ? portLoss / 100 * portValue : null;
         const bestHedgePnL = Math.max(...STRATS.map(s => {
           const avg = s.betaScale ? s.avgPnl * portBeta : s.avgPnl;
@@ -2026,8 +2174,8 @@
       <div class="crash-card-title">${cs.label} Crash</div>
       <div class="crash-row"><span class="crash-lbl">Nifty falls</span><span class="crash-val loss">${cs.dd.toFixed(1)}%</span></div>
       <div class="crash-row"><span class="crash-lbl">Your portfolio</span><span class="crash-val loss">${portLoss.toFixed(1)}%${portLossINR ? ` (${fmtINR(portLossINR)})` : ''}</span></div>
-      <div class="crash-row"><span class="crash-lbl">β range loss</span><span class="crash-val loss" style="font-size:11px;">${portLossLow.toFixed(1)}% to ${portLossHigh.toFixed(1)}%</span></div>
-      <div class="crash-row"><span class="crash-lbl">Net (best hedge)</span><span class="crash-val ${bestNet >= -2 ? 'gain' : 'loss'}">${bestNet.toFixed(1)}% (${offsetPct}% offset)</span></div>
+      <div class="crash-row"><span class="crash-lbl">β range loss</span><span class="crash-val loss" style="font-size:11px;">${portLossWorstCase.toFixed(1)}% to ${portLossBestCase.toFixed(1)}%</span></div>
+      <div class="crash-row"><span class="crash-lbl">Net (best hedge avg)</span><span class="crash-val ${bestNet >= -0.5 ? 'gain' : 'loss'}">${bestNet.toFixed(1)}% (${offsetPct}% offset)</span></div>
       <div class="crash-row"><span class="crash-lbl">Avg recovery</span><span class="crash-val muted">${recov}</span></div>
     </div>`;
       }).join('');
@@ -2038,7 +2186,7 @@
     <thead><tr>
       <th>Strategy</th>
       <th style="text-align:center;">Win %</th>
-      <th style="text-align:center;">Avg Gain</th>
+      <th style="text-align:center;">Avg Gain (β-adj)</th>
       <th style="text-align:center;background:#FFFBEB;color:var(--amber);border-bottom:2px solid var(--amber);">Monthly Cost</th>
       <th style="text-align:center;background:#FFFBEB;color:var(--amber);border-bottom:2px solid var(--amber);">Annual Cost</th>
       <th style="text-align:center;">Score</th>
@@ -2060,7 +2208,7 @@
         return `<tr>
         <td><span class="rank-badge ${badgeCls}">${rank}</span>
             <span style="font-weight:500;margin-left:8px;">${s.name}</span></td>
-        <td style="text-align:center;font-family:var(--font-mono);font-weight:600;">${s.wr}%</td>
+        <td style="text-align:center;font-family:var(--font-mono);font-weight:600;">${Number.isInteger(s.wr) ? s.wr : s.wr.toFixed(1)}%</td>
         <td style="text-align:center;font-family:var(--font-mono);font-weight:600;color:var(--green);">+${adjAvg.toFixed(1)}%</td>
         <td style="text-align:center;font-family:var(--font-mono);background:#FFFBEB;">${moCostStr}</td>
         <td style="text-align:center;font-family:var(--font-mono);background:#FFFBEB;">${yrCostStr}</td>
@@ -2218,12 +2366,13 @@
       }).join('');
 
       // ── Scenario table ──
-      const strats = STRATS; // order: S1 S2 S7 S3 S8 S6 S5 S4
+      const strats = STRATS; // display order preserved
       let thead = `<thead><tr><th class="left">Episode</th><th>Nifty DD</th><th>Your Loss</th>`;
       strats.forEach(s => {
-        const moDragPct = s.betaScale ? s.drag * portBeta : s.drag;
-        thead += `<th style="background:#FFFBEB;color:var(--amber);font-size:9px;" title="${s.name} — monthly cost">${s.short}<br><span style="font-size:9px;opacity:0.8;">Cost</span></th>`;
-        thead += `<th>${s.short}<br><span style="font-size:9px;opacity:0.7;">Gain</span></th><th>${s.short}<br><span style="font-size:9px;opacity:0.7;">Net</span></th>`;
+        thead += `<th style="background:#FFFBEB;color:var(--amber);font-size:9px;" title="${s.name} — est. monthly drag × episode duration">` +
+          `${s.short}<br><span style="font-size:9px;opacity:0.8;">Est. Cost</span></th>`;
+        thead += `<th>${s.short}<br><span style="font-size:9px;opacity:0.7;">Net Gain</span></th>` +
+          `<th>${s.short}<br><span style="font-size:9px;opacity:0.7;">Port. Net</span></th>`;
       });
       thead += `</tr></thead>`;
       let tbody2 = '<tbody>';
@@ -2234,26 +2383,33 @@
       <td class="ep-name">${ep.ep}${isOngoing ? ' 🔴' : ''}</td>
       <td class="cell-loss">${ep.dd.toFixed(1)}%</td>
       <td class="cell-loss">${portLoss.toFixed(1)}%${portValue ? `<br><span style="font-size:10px;">${fmtINR(portValue * portLoss / 100)}</span>` : ''}</td>`;
-        strats.forEach((s, i) => {
-          const raw = ep.pnl[i];
+        strats.forEach((s) => {
+          // Cost: estimated monthly drag × episode duration in months (calendar days / 30)
           const moDragPct = s.betaScale ? s.drag * portBeta : s.drag;
           const episodeDurMo = (ep.dur || 30) / 30;
           const costPct = moDragPct * episodeDurMo;
           const costINR = portValue ? portValue * costPct / 100 : null;
-          // Cost cell (always shown)
           const costCell = costINR
-            ? `<td style="background:#FFFBEB;font-family:var(--font-mono);font-size:11px;color:var(--red);text-align:center;" title="${costPct.toFixed(2)}% over ${episodeDurMo.toFixed(1)} months">−${fmtINR(costINR)}<br><span style="font-size:9px;color:var(--amber);">${costPct.toFixed(1)}%</span></td>`
-            : `<td style="background:#FFFBEB;font-family:var(--font-mono);font-size:11px;color:var(--amber);text-align:center;">−${costPct.toFixed(1)}%</td>`;
+            ? `<td style="background:#FFFBEB;font-family:var(--font-mono);font-size:11px;color:var(--red);text-align:center;" title="Est. drag: ${costPct.toFixed(2)}% over ${episodeDurMo.toFixed(1)} months">−${fmtINR(costINR)}<br><span style="font-size:9px;color:var(--amber);">${costPct.toFixed(1)}%</span></td>`
+            : `<td style="background:#FFFBEB;font-family:var(--font-mono);font-size:11px;color:var(--amber);text-align:center;" title="Est. drag: ${costPct.toFixed(2)}%">−${costPct.toFixed(1)}%</td>`;
           tr += costCell;
+
+          // Keyed lookup — no positional fragility
+          const epPnlMap = EPISODE_PNL[ep.ep];
+          const raw = epPnlMap ? epPnlMap[s.key] : null;
+
           if (raw == null) {
             tr += `<td style="color:var(--muted);">—</td><td style="color:var(--muted);">—</td>`;
           } else {
             const gain = s.betaScale ? raw * portBeta : raw;
+            // portLoss is negative; net > 0 means hedge more than covered the loss
             const net = portLoss + gain;
             const gainINR = portValue ? portValue * gain / 100 : null;
             const netINR = portValue ? portValue * net / 100 : null;
+            // Use -0.5% threshold: true break-even, not just ≥0 (avoids misleadingly green at 0.00)
+            const netPositive = net >= -0.5;
             tr += `<td class="${gain >= 0 ? 'cell-gain' : 'cell-loss'}">${fmt(gain, 1)}%${gainINR ? `<br><span style="font-size:10px;">${fmtINR(gainINR)}</span>` : ''}</td>`;
-            tr += `<td class="${net >= 0 ? 'cell-gain' : 'cell-loss'}" style="font-weight:700;">${fmt(net, 1)}%${netINR ? `<br><span style="font-size:10px;">${fmtINR(netINR)}</span>` : ''}</td>`;
+            tr += `<td class="${netPositive ? 'cell-gain' : 'cell-loss'}" style="font-weight:700;">${fmt(net, 1)}%${netINR ? `<br><span style="font-size:10px;">${fmtINR(netINR)}</span>` : ''}</td>`;
           }
         });
         tr += '</tr>';
@@ -2261,6 +2417,16 @@
       });
       tbody2 += '</tbody>';
       document.getElementById('scenarioTable').innerHTML = thead + tbody2;
+      // Add footnote below the scenario table
+      const scenarioCard = document.getElementById('scenarioTable').closest('.card');
+      let footnote = scenarioCard.querySelector('.scenario-footnote');
+      if (!footnote) {
+        footnote = document.createElement('div');
+        footnote.className = 'scenario-footnote';
+        footnote.style.cssText = 'padding:10px 16px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);background:var(--bg3);line-height:1.5;';
+        scenarioCard.appendChild(footnote);
+      }
+      footnote.innerHTML = `ⓘ <strong>Est. Cost</strong> = monthly drag × episode duration (calendar days ÷ 30). Actual option premiums vary with VIX — this is an approximation. &nbsp;|&nbsp; <strong>Net Gain</strong> = back-test net P&L (already after premium cost). &nbsp;|&nbsp; <strong>Port. Net</strong> = your portfolio loss + net hedge gain; green = hedge more than covered your loss.`;
 
       // ── Playbook ──
       // Use live VIX if available (fetched from /api/live on page load), else fall back to avg trigger value of 20
@@ -2295,7 +2461,16 @@
       <div class="pb-body">
         <div class="pb-row"><span class="pb-row-lbl">Trigger</span><span class="pb-row-val amber">2-of-3: VIX / DMA / FPI</span></div>
         <div class="pb-row"><span class="pb-row-lbl">Nifty Notional</span><span class="pb-row-val">${(portBeta * 100).toFixed(0)}% of portfolio${niftyNotional}</span></div>
-        <div class="pb-row"><span class="pb-row-lbl">Model Alloc</span><span class="pb-row-val">${modelAlloc}%${stratBAlloc}</span></div>
+        <div class="pb-row" style="align-items:flex-start;">
+          <span class="pb-row-lbl" style="padding-top:2px;">v3.2 Target</span>
+          <span class="pb-row-val" id="pb-b-model" style="text-align:right;line-height:1.5;">
+            <span style="color:var(--muted);font-size:11px;">Loading engine…</span>
+          </span>
+        </div>
+        <div class="pb-row" style="background:var(--bg3);border-radius:4px;padding:6px 8px;border:none;margin-top:4px;">
+          <span style="font-size:10px;color:var(--muted);">Fallback (Lasso)</span>
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted2);font-weight:600;">${modelAlloc}%${stratBAlloc}</span>
+        </div>
         <div class="pb-row"><span class="pb-row-lbl">Instrument</span><span class="pb-row-val">ATM Nifty Put · 1-month expiry</span></div>
         <div class="pb-row"><span class="pb-row-lbl">Exit</span><span class="pb-row-val">Nifty above 100-DMA 3d / VIX &lt; 15</span></div>
         <div class="pb-row"><span class="pb-row-lbl">Monthly Cost</span><span class="pb-row-val">~${(1.20 * portBeta).toFixed(2)}%${portValue ? ` (${fmtINR(portValue * 1.20 * portBeta / 100)}/mo)` : ''}</span></div>
@@ -2316,6 +2491,175 @@
       </div>
     </div>
   `;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MAGNITUDE HEDGE v3.2 — PORTFOLIO-SCALED ENGINE
+    // ═══════════════════════════════════════════════════════════════
+    function toggleV3PortDiag() {
+      const el = document.getElementById('v3p-diag-body');
+      const btn = document.getElementById('v3p-diag-btn');
+      const isOpen = el.style.display !== 'none';
+      el.style.display = isOpen ? 'none' : 'block';
+      btn.textContent = isOpen ? '🔍 Diagnostics' : '✕ Close';
+    }
+
+    async function loadV3ForPortfolio(portBeta, portValue, fpiWeekly) {
+      const card = document.getElementById('v3PortCard');
+      const stageBadge = document.getElementById('v3p-stage-badge');
+      const targetEl   = document.getElementById('v3p-target');
+      const actionEl   = document.getElementById('v3p-action');
+
+      // Show loading state
+      stageBadge.textContent = 'LOADING…';
+      stageBadge.style.background = 'var(--bg3)';
+      stageBadge.style.color = 'var(--muted)';
+      stageBadge.style.borderColor = 'var(--border)';
+      targetEl.textContent = '--%';
+
+      try {
+        const fpi = fpiWeekly ?? window._liveFpiWeekly ?? -1200;
+        const url = `/api/v3_hedge?fpi=${encodeURIComponent(fpi)}&beta=${encodeURIComponent(portBeta.toFixed(3))}`;
+        const resp = await fetch(url, { cache: 'no-cache' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const json = await resp.json();
+        if (json.status !== 'success') throw new Error(json.message || 'Engine error');
+
+        const d = json.data;
+        const betaAdj   = d.beta_adjusted_target;
+        const niftyBase = d.nifty_base_target;
+        const stage     = d.active_stage;
+        const diag      = d.diagnostics;
+        const inputs    = d.inputs_used || {};
+
+        // ── Main target display ──
+        targetEl.textContent = betaAdj.toFixed(1) + '%';
+        document.getElementById('v3p-nifty-base').textContent = niftyBase.toFixed(1) + '%';
+        document.getElementById('v3p-beta-used').textContent  = portBeta.toFixed(3);
+        document.getElementById('v3p-beta-adj').textContent   = betaAdj.toFixed(1) + '%';
+
+        // ── Live inputs display ──
+        document.getElementById('v3p-in-vix').textContent   = (inputs.vix   != null ? inputs.vix.toFixed(1)   : '--');
+        document.getElementById('v3p-in-dd').textContent    = (diag.current_dd != null ? diag.current_dd.toFixed(2) + '%' : '--');
+        document.getElementById('v3p-in-score').textContent = (diag.onset_score != null ? diag.onset_score.toFixed(1)  : '--');
+        document.getElementById('v3p-in-fpi').textContent   = (inputs.fpi_weekly != null ? '₹' + inputs.fpi_weekly.toLocaleString('en-IN') + ' Cr' : '--');
+
+        // ── Diagnostics block ──
+        document.getElementById('v3p-d-score').textContent   = diag.onset_score != null ? diag.onset_score.toFixed(1) : '--';
+        document.getElementById('v3p-d-penalty').textContent = diag.s2_penalty != null ? '-' + diag.s2_penalty.toFixed(1) + '% (time adj)' : '--';
+        document.getElementById('v3p-d-dd').textContent      = diag.current_dd != null ? diag.current_dd.toFixed(2) + '%' : '--';
+        document.getElementById('v3p-d-base').textContent    = niftyBase.toFixed(1) + '%';
+
+        // ── Action label ──
+        let actionText, actionBg, actionColor;
+        if (stage.includes('Stage 3') && stage.includes('SEVERE')) {
+          actionText = '► Execute Strategy C (Short Futures / Collars)';
+          actionBg = 'var(--red-bg)'; actionColor = 'var(--red)';
+        } else if (stage.includes('Stage 3') && stage.includes('MAJOR')) {
+          actionText = '► Deploy Strategy B + C (Put + Futures)';
+          actionBg = 'var(--red-bg)'; actionColor = 'var(--red)';
+        } else if (stage.includes('De-escalation Blocked')) {
+          actionText = '► Hold: Maintain Hedge — Recovery Gate Not Yet Cleared';
+          actionBg = 'var(--amber-bg)'; actionColor = 'var(--amber)';
+        } else if (betaAdj > 40) {
+          actionText = '► Deploy Strategy B (Buy ATM Nifty Puts at ' + betaAdj.toFixed(1) + '%)';
+          actionBg = 'var(--amber-bg)'; actionColor = 'var(--amber)';
+        } else {
+          actionText = '► Maintain Strategy A (Core Debt/Gold Buffer)';
+          actionBg = 'var(--green-bg)'; actionColor = 'var(--green)';
+        }
+        actionEl.textContent = actionText;
+        actionEl.style.background = actionBg;
+        actionEl.style.color      = actionColor;
+
+        // ── Stage badge ──
+        if (stage.includes('Stage 3')) {
+          stageBadge.style.background = 'var(--red-bg)'; stageBadge.style.color = 'var(--red)'; stageBadge.style.borderColor = 'rgba(239,68,68,0.3)';
+        } else if (stage.includes('Stage 2')) {
+          stageBadge.style.background = 'var(--amber-bg)'; stageBadge.style.color = 'var(--amber)'; stageBadge.style.borderColor = 'rgba(245,158,11,0.3)';
+        } else {
+          stageBadge.style.background = 'var(--primary-bg)'; stageBadge.style.color = 'var(--primary)'; stageBadge.style.borderColor = 'rgba(37,99,235,0.2)';
+        }
+        stageBadge.textContent = stage.toUpperCase().replace(' — ', ' · ');
+
+        // ── Math breakdown ──
+        const breakdownEl = document.getElementById('v3p-math-breakdown');
+        const vix = inputs.vix ?? 18.5;
+        const dd  = diag.current_dd ?? 0;
+        const penalty = Math.abs(diag.s2_penalty ?? 0);
+
+        function buildFeatRow(name, val, isNeg) {
+          const maxC = Math.max(
+            Math.abs(12.5), Math.abs(0.52 * vix), Math.abs(0.48 * dd),
+            Math.abs(5.10 * vix * dd / 100), penalty, 0.1
+          );
+          const w = Math.min(Math.abs(val) / maxC * 100, 100);
+          const hue = 120 - w * 1.2;
+          const barColor = `hsl(${hue},98%,45%)`;
+          const sign = isNeg ? '-' : '+';
+          return `<div class="v3p-feat-row">
+            <div class="v3p-feat-name">${name}</div>
+            <div class="v3p-feat-bar-wrap"><div class="v3p-feat-bar-fill" style="width:${w.toFixed(0)}%;background:linear-gradient(90deg,hsl(120,95%,45%),${barColor});"></div></div>
+            <div class="v3p-feat-coef" style="color:${barColor};">${sign}${Math.abs(val).toFixed(1)}</div>
+          </div>`;
+        }
+
+        let mathHtml = '';
+        if (stage.includes('Stage 2') || stage.includes('Stage 3')) {
+          const tBase = 12.5, tVix = 0.52 * vix, tDd = 0.48 * dd, tInt = 5.10 * vix * dd / 100;
+          mathHtml = `
+            <div style="font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;color:var(--amber);margin-bottom:10px;">Active: Stage 2 (Linear Interaction)</div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);">
+              Alloc = 12.5 + 0.52·VIX + 0.48·DD% + 5.10·[VIX×DD%÷100] − Penalty · then × β(${portBeta.toFixed(2)})
+            </div>
+            ${buildFeatRow('Baseline Floor', tBase, false)}
+            ${buildFeatRow('VIX Component', tVix, false)}
+            ${buildFeatRow('DD% Component', tDd, false)}
+            ${buildFeatRow('VIX × DD% Panic', tInt, false)}
+            ${buildFeatRow('Time Penalty', penalty, true)}
+          `;
+        } else {
+          const score = diag.onset_score ?? 0;
+          mathHtml = `
+            <div style="font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;color:var(--primary);margin-bottom:10px;">Active: Stage 1 (Sigmoid Onset)</div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);">
+              Score = 0.48·RV + 0.25·Gap + 0.15·FPI + 0.12·VIX → Sigmoid Notional · then × β(${portBeta.toFixed(2)})
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Regression weights driving onset score (${score.toFixed(1)})</div>
+            ${[['Realized Volatility', 48], ['100-DMA Gap', 25], ['FPI Outflow', 15], ['India VIX', 12]].map(([n, w]) => {
+              const hue = 120 - w * 1.2;
+              const barColor = `hsl(${hue},98%,45%)`;
+              return `<div class="v3p-feat-row">
+                <div class="v3p-feat-name">${n}</div>
+                <div class="v3p-feat-bar-wrap"><div class="v3p-feat-bar-fill" style="width:${w}%;background:linear-gradient(90deg,hsl(120,95%,45%),${barColor});"></div></div>
+                <div class="v3p-feat-coef" style="color:${barColor};">${w}%</div>
+              </div>`;
+            }).join('')}
+          `;
+        }
+        breakdownEl.innerHTML = mathHtml;
+
+        // ── Update playbook Strategy B with v3 target ──
+        const pbBModel = document.getElementById('pb-b-model');
+        if (pbBModel) {
+          const rupeeStr = portValue ? ` (${fmtINR(portValue * portBeta * betaAdj / 100)})` : '';
+          pbBModel.innerHTML = `<strong>${betaAdj.toFixed(1)}%</strong> of portfolio <span style="font-size:10px;color:var(--muted);">${rupeeStr}</span><br><span style="font-size:10px;color:var(--muted);">v3.2 engine · Stage: ${stage.replace(' — ',' · ')}</span>`;
+        }
+
+        // Store for reference
+        window._v3PortResult = { betaAdj, niftyBase, stage, diag, portBeta };
+
+      } catch (e) {
+        console.error('v3 portfolio engine failed:', e);
+        stageBadge.textContent = 'ENGINE OFFLINE';
+        stageBadge.style.background = 'var(--bg3)';
+        stageBadge.style.color = 'var(--muted)';
+        targetEl.textContent = 'N/A';
+        actionEl.textContent = 'Backend unavailable — using fallback Lasso model below';
+        actionEl.style.background = 'var(--bg3)';
+        actionEl.style.color = 'var(--muted)';
+        document.getElementById('v3p-math-breakdown').innerHTML = `<div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:4px;">Engine offline. Start the Flask backend and refresh.</div>`;
+      }
     }
 
     function showError(msg) {
@@ -2421,8 +2765,9 @@
 
     // Fetch live VIX and DMA gap from the backend cache so the playbook
     // model allocation uses real market data rather than static trigger values.
-    window._liveVix = 20;   // fallback
+    window._liveVix = 20;       // fallback
     window._liveDDSignal = 2;   // fallback
+    window._liveFpiWeekly = -1200; // fallback (₹ Cr/week)
     (async () => {
       try {
         const resp = await fetch('/api/live', { cache: 'no-cache' });
@@ -2430,8 +2775,11 @@
         const json = await resp.json();
         const d = json?.data;
         if (d) {
-          if (d.vix != null) window._liveVix = d.vix;
-          if (d.dmaGap != null) window._liveDDSignal = Math.max(0, -d.dmaGap);
+          if (d.vix    != null) window._liveVix       = d.vix;
+          if (d.dmaGap != null) window._liveDDSignal  = Math.max(0, -d.dmaGap);
+          // fpiWeekly is user-entered on the main dashboard; use session storage if available
+          const storedFpi = sessionStorage.getItem('fpiWeekly');
+          if (storedFpi != null) window._liveFpiWeekly = parseFloat(storedFpi);
         }
       } catch { }
     })();
