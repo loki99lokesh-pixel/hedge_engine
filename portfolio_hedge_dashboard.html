@@ -1036,57 +1036,6 @@
       font-weight: 600;
     }
 
-    /* ── v3 Portfolio Engine card ── */
-    .v3p-stat-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 6px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 12px;
-      color: var(--muted2);
-    }
-    .v3p-stat-row:last-child { border-bottom: none; }
-
-    .v3p-feat-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-    .v3p-feat-name {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--muted2);
-      width: 150px;
-      flex-shrink: 0;
-      font-weight: 500;
-    }
-    .v3p-feat-bar-wrap {
-      flex: 1;
-      height: 6px;
-      background: var(--bg3);
-      border-radius: 3px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-    }
-    .v3p-feat-bar-fill {
-      height: 100%;
-      border-radius: 3px;
-    }
-    .v3p-feat-coef {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 700;
-      width: 50px;
-      text-align: right;
-    }
-
-    @media(max-width:800px) {
-      .v3p-main-grid { grid-template-columns: 1fr !important; }
-      .v3p-diag-grid { grid-template-columns: repeat(2,1fr) !important; }
-    }
-
     /* ── Playbook (matches dashboard playbook-grid) ── */
     .playbook-grid {
       display: grid;
@@ -1560,74 +1509,7 @@
         </div>
       </div>
 
-      <!-- 7. Magnitude Hedge Engine — Portfolio-Scaled -->
-      <div class="section-head">Magnitude Hedging v3.2 — Portfolio-Adjusted Target</div>
-      <div class="card" id="v3PortCard" style="border-left: 4px solid var(--primary); margin-bottom:24px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-family:var(--font-head);font-weight:600;font-size:15px;color:var(--text);">Magnitude Hedging v3.2 Engine</span>
-            <span class="card-title-badge" style="background:var(--primary-bg);color:var(--primary);border-color:rgba(37,99,235,0.2);">LOOCV Validated</span>
-          </div>
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span id="v3p-stage-badge" style="font-family:var(--font-mono);font-size:10px;font-weight:600;border:1px solid var(--border);background:var(--bg3);color:var(--muted);padding:4px 10px;border-radius:4px;">LOADING…</span>
-            <button onclick="toggleV3PortDiag()" id="v3p-diag-btn" style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:6px 12px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text);box-shadow:var(--shadow-sm);">🔍 Diagnostics</button>
-          </div>
-        </div>
-
-        <!-- Main output row -->
-        <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:16px; margin-top:20px;" class="v3p-main-grid">
-          <div style="background:var(--primary-bg);border:1px solid rgba(37,99,235,0.15);border-radius:var(--r);padding:18px 20px;text-align:center;">
-            <div style="font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;color:var(--primary);margin-bottom:6px;">β-Adj. Put Target</div>
-            <div id="v3p-target" style="font-family:var(--font-mono);font-size:40px;font-weight:700;color:var(--text);line-height:1;">--%</div>
-            <div style="font-size:11px;color:var(--muted2);margin-top:4px;">of portfolio in ATM Nifty puts</div>
-            <div id="v3p-action" style="font-size:12px;font-weight:600;margin-top:10px;padding:8px 12px;border-radius:var(--r2);background:var(--bg3);color:var(--muted);">Calculating…</div>
-          </div>
-          <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;">
-            <div style="font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Beta Scaling</div>
-            <div class="v3p-stat-row"><span>Nifty Base Target</span><span id="v3p-nifty-base" style="font-family:var(--font-mono);font-weight:700;">--%</span></div>
-            <div class="v3p-stat-row"><span>Your Portfolio β</span><span id="v3p-beta-used" style="font-family:var(--font-mono);font-weight:700;">--</span></div>
-            <div class="v3p-stat-row"><span>β-Adjusted Target</span><span id="v3p-beta-adj" style="font-family:var(--font-mono);font-weight:700;color:var(--primary);">--%</span></div>
-            <div class="v3p-stat-row" style="border:none;padding-top:10px;margin-top:4px;border-top:1px dashed var(--border);">
-              <span style="font-size:10px;color:var(--muted);">β &lt; 1 → smaller hedge needed</span>
-            </div>
-          </div>
-          <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;">
-            <div style="font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Live Inputs Used</div>
-            <div class="v3p-stat-row"><span>India VIX</span><span id="v3p-in-vix" style="font-family:var(--font-mono);font-weight:700;">--</span></div>
-            <div class="v3p-stat-row"><span>Current DD%</span><span id="v3p-in-dd" style="font-family:var(--font-mono);font-weight:700;">--</span></div>
-            <div class="v3p-stat-row"><span>Onset Score</span><span id="v3p-in-score" style="font-family:var(--font-mono);font-weight:700;">--</span></div>
-            <div class="v3p-stat-row" style="border:none;"><span>FPI Weekly</span><span id="v3p-in-fpi" style="font-family:var(--font-mono);font-weight:700;">--</span></div>
-          </div>
-        </div>
-
-        <!-- Expandable diagnostics -->
-        <div id="v3p-diag-body" style="display:none; margin-top:20px; border-top:1px solid var(--border); padding-top:20px;">
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;" class="v3p-diag-grid">
-            <div style="background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);">
-              <span style="font-family:var(--font-mono);font-size:9px;text-transform:uppercase;color:var(--muted);">Onset Score (S1)</span><br>
-              <strong id="v3p-d-score" style="font-size:18px;color:var(--text);font-family:var(--font-mono);">--</strong>
-            </div>
-            <div style="background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);">
-              <span style="font-family:var(--font-mono);font-size:9px;text-transform:uppercase;color:var(--muted);">Time Penalty (S2)</span><br>
-              <strong id="v3p-d-penalty" style="font-size:18px;color:var(--red);font-family:var(--font-mono);">--</strong>
-            </div>
-            <div style="background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);">
-              <span style="font-family:var(--font-mono);font-size:9px;text-transform:uppercase;color:var(--muted);">Drawdown %</span><br>
-              <strong id="v3p-d-dd" style="font-size:18px;color:var(--text);font-family:var(--font-mono);">--</strong>
-            </div>
-            <div style="background:var(--primary-bg);padding:12px;border-radius:6px;border:1px solid rgba(37,99,235,0.2);">
-              <span style="font-family:var(--font-mono);font-size:9px;text-transform:uppercase;color:var(--primary);font-weight:600;">Nifty Base Hedge</span><br>
-              <strong id="v3p-d-base" style="font-size:18px;color:var(--primary);font-family:var(--font-mono);">--</strong>
-            </div>
-          </div>
-          <div id="v3p-math-breakdown" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:16px;font-size:12px;"></div>
-          <div style="font-size:11px;color:var(--muted2);margin-top:12px;border-left:3px solid var(--border2);padding-left:10px;line-height:1.6;">
-            <strong>De-escalation Gate:</strong> Requires ≥50% drawdown recovery <em>and</em> 10 consecutive days of VIX &lt; 20 + RV &lt; 22 before reducing the hedge target.
-          </div>
-        </div>
-      </div>
-
-      <!-- 8. Playbook -->
+      <!-- 7. Playbook -->
       <div class="section-head">Your Personalised Playbook</div>
       <div class="playbook-grid" id="playbookGrid"></div>
 
@@ -1646,6 +1528,8 @@
             (.xlsx)</button>
           <button type="button" class="dl-btn" id="btnWord" onclick="downloadWord()">⬇ Download Word Report
             (.docx)</button>
+          <button type="button" class="dl-btn" id="btnText" onclick="downloadText()">⬇ Download Text Report
+            (.txt)</button>
           <button type="button" class="dl-btn" onclick="window.print()">🖨 Print / Save as PDF</button>
         </div>
         <div id="dlStatus" style="margin-top:10px;font-family:var(--font-mono);font-size:11px;color:var(--muted);">
@@ -2044,7 +1928,7 @@
     // Keep last analysis result for download buttons
     let lastAnalysis = null;
 
-    function runAnalysis() {
+    async function runAnalysis() {
       const errorEl = document.getElementById('errorMsg');
       errorEl.style.display = 'none';
 
@@ -2109,9 +1993,6 @@
       const bar = document.getElementById('loadingFill');
       const t = setInterval(() => { prog = Math.min(prog + 10, 95); bar.style.width = prog + '%'; }, 40);
       setTimeout(() => { clearInterval(t); bar.style.width = '100%'; }, 500);
-
-      // Kick off the v3.2 magnitude engine immediately with this portfolio's beta
-      loadV3ForPortfolio(portBeta, portValue, window._liveFpiWeekly ?? -1200);
 
       // ── Metrics tiles ──
       const betaCls = portBeta > 1.2 ? 'red' : portBeta > 0.9 ? 'amber' : 'green';
@@ -2428,17 +2309,13 @@
       }
       footnote.innerHTML = `ⓘ <strong>Est. Cost</strong> = monthly drag × episode duration (calendar days ÷ 30). Actual option premiums vary with VIX — this is an approximation. &nbsp;|&nbsp; <strong>Net Gain</strong> = back-test net P&L (already after premium cost). &nbsp;|&nbsp; <strong>Port. Net</strong> = your portfolio loss + net hedge gain; green = hedge more than covered your loss.`;
 
-      // ── Playbook ──
-      // Use live VIX if available (fetched from /api/live on page load), else fall back to avg trigger value of 20
-      const liveVix = window._liveVix || 20;
-      const liveDDSignal = window._liveDDSignal || 2;
-      const modelAlloc = Math.min(90, Math.max(10, Math.round(
-        12.5 + 0.52 * liveVix + 0.48 * liveDDSignal + 5.10 * (liveVix * liveDDSignal / 100)
-      )));
+      // ── Playbook — fetch v3.2 engine for this portfolio's beta ──
+      // Uses the real magnitude engine (Stage 1 sigmoid + Stage 2 linear) with portfolio beta scaling.
+      // Falls back to Stage 2 equation if the API is unavailable.
       const niftyNotional = portValue ? ` = ${fmtINR(portValue * portBeta)}` : '';
-      const stratBAlloc = portValue ? ` (${fmtINR(portValue * portBeta * modelAlloc / 100)})` : '';
-
-      document.getElementById('playbookGrid').innerHTML = `
+      async function renderPlaybook(modelAlloc, stageLabel, stageDesc) {
+        const stratBAlloc = portValue ? ` (${fmtINR(portValue * portBeta * modelAlloc / 100)})` : '';
+        document.getElementById('playbookGrid').innerHTML = `
     <div class="pb-card">
       <div class="pb-header">
         <div class="pb-letter a">A</div>
@@ -2461,16 +2338,7 @@
       <div class="pb-body">
         <div class="pb-row"><span class="pb-row-lbl">Trigger</span><span class="pb-row-val amber">2-of-3: VIX / DMA / FPI</span></div>
         <div class="pb-row"><span class="pb-row-lbl">Nifty Notional</span><span class="pb-row-val">${(portBeta * 100).toFixed(0)}% of portfolio${niftyNotional}</span></div>
-        <div class="pb-row" style="align-items:flex-start;">
-          <span class="pb-row-lbl" style="padding-top:2px;">v3.2 Target</span>
-          <span class="pb-row-val" id="pb-b-model" style="text-align:right;line-height:1.5;">
-            <span style="color:var(--muted);font-size:11px;">Loading engine…</span>
-          </span>
-        </div>
-        <div class="pb-row" style="background:var(--bg3);border-radius:4px;padding:6px 8px;border:none;margin-top:4px;">
-          <span style="font-size:10px;color:var(--muted);">Fallback (Lasso)</span>
-          <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted2);font-weight:600;">${modelAlloc}%${stratBAlloc}</span>
-        </div>
+        <div class="pb-row"><span class="pb-row-lbl">Model Alloc</span><span class="pb-row-val">${modelAlloc}%${stratBAlloc}</span></div>
         <div class="pb-row"><span class="pb-row-lbl">Instrument</span><span class="pb-row-val">ATM Nifty Put · 1-month expiry</span></div>
         <div class="pb-row"><span class="pb-row-lbl">Exit</span><span class="pb-row-val">Nifty above 100-DMA 3d / VIX &lt; 15</span></div>
         <div class="pb-row"><span class="pb-row-lbl">Monthly Cost</span><span class="pb-row-val">~${(1.20 * portBeta).toFixed(2)}%${portValue ? ` (${fmtINR(portValue * 1.20 * portBeta / 100)}/mo)` : ''}</span></div>
@@ -2491,175 +2359,35 @@
       </div>
     </div>
   `;
-    }
+      } // end renderPlaybook
 
-    // ═══════════════════════════════════════════════════════════════
-    // MAGNITUDE HEDGE v3.2 — PORTFOLIO-SCALED ENGINE
-    // ═══════════════════════════════════════════════════════════════
-    function toggleV3PortDiag() {
-      const el = document.getElementById('v3p-diag-body');
-      const btn = document.getElementById('v3p-diag-btn');
-      const isOpen = el.style.display !== 'none';
-      el.style.display = isOpen ? 'none' : 'block';
-      btn.textContent = isOpen ? '🔍 Diagnostics' : '✕ Close';
-    }
-
-    async function loadV3ForPortfolio(portBeta, portValue, fpiWeekly) {
-      const card = document.getElementById('v3PortCard');
-      const stageBadge = document.getElementById('v3p-stage-badge');
-      const targetEl   = document.getElementById('v3p-target');
-      const actionEl   = document.getElementById('v3p-action');
-
-      // Show loading state
-      stageBadge.textContent = 'LOADING…';
-      stageBadge.style.background = 'var(--bg3)';
-      stageBadge.style.color = 'var(--muted)';
-      stageBadge.style.borderColor = 'var(--border)';
-      targetEl.textContent = '--%';
-
+      // Call v3.2 API with this portfolio's beta — show stage context in playbook
+      const fpiWeekly = window._liveFpiWeekly || -1200;
       try {
-        const fpi = fpiWeekly ?? window._liveFpiWeekly ?? -1200;
-        const url = `/api/v3_hedge?fpi=${encodeURIComponent(fpi)}&beta=${encodeURIComponent(portBeta.toFixed(3))}`;
-        const resp = await fetch(url, { cache: 'no-cache' });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const json = await resp.json();
-        if (json.status !== 'success') throw new Error(json.message || 'Engine error');
-
-        const d = json.data;
-        const betaAdj   = d.beta_adjusted_target;
-        const niftyBase = d.nifty_base_target;
-        const stage     = d.active_stage;
-        const diag      = d.diagnostics;
-        const inputs    = d.inputs_used || {};
-
-        // ── Main target display ──
-        targetEl.textContent = betaAdj.toFixed(1) + '%';
-        document.getElementById('v3p-nifty-base').textContent = niftyBase.toFixed(1) + '%';
-        document.getElementById('v3p-beta-used').textContent  = portBeta.toFixed(3);
-        document.getElementById('v3p-beta-adj').textContent   = betaAdj.toFixed(1) + '%';
-
-        // ── Live inputs display ──
-        document.getElementById('v3p-in-vix').textContent   = (inputs.vix   != null ? inputs.vix.toFixed(1)   : '--');
-        document.getElementById('v3p-in-dd').textContent    = (diag.current_dd != null ? diag.current_dd.toFixed(2) + '%' : '--');
-        document.getElementById('v3p-in-score').textContent = (diag.onset_score != null ? diag.onset_score.toFixed(1)  : '--');
-        document.getElementById('v3p-in-fpi').textContent   = (inputs.fpi_weekly != null ? '₹' + inputs.fpi_weekly.toLocaleString('en-IN') + ' Cr' : '--');
-
-        // ── Diagnostics block ──
-        document.getElementById('v3p-d-score').textContent   = diag.onset_score != null ? diag.onset_score.toFixed(1) : '--';
-        document.getElementById('v3p-d-penalty').textContent = diag.s2_penalty != null ? '-' + diag.s2_penalty.toFixed(1) + '% (time adj)' : '--';
-        document.getElementById('v3p-d-dd').textContent      = diag.current_dd != null ? diag.current_dd.toFixed(2) + '%' : '--';
-        document.getElementById('v3p-d-base').textContent    = niftyBase.toFixed(1) + '%';
-
-        // ── Action label ──
-        let actionText, actionBg, actionColor;
-        if (stage.includes('Stage 3') && stage.includes('SEVERE')) {
-          actionText = '► Execute Strategy C (Short Futures / Collars)';
-          actionBg = 'var(--red-bg)'; actionColor = 'var(--red)';
-        } else if (stage.includes('Stage 3') && stage.includes('MAJOR')) {
-          actionText = '► Deploy Strategy B + C (Put + Futures)';
-          actionBg = 'var(--red-bg)'; actionColor = 'var(--red)';
-        } else if (stage.includes('De-escalation Blocked')) {
-          actionText = '► Hold: Maintain Hedge — Recovery Gate Not Yet Cleared';
-          actionBg = 'var(--amber-bg)'; actionColor = 'var(--amber)';
-        } else if (betaAdj > 40) {
-          actionText = '► Deploy Strategy B (Buy ATM Nifty Puts at ' + betaAdj.toFixed(1) + '%)';
-          actionBg = 'var(--amber-bg)'; actionColor = 'var(--amber)';
-        } else {
-          actionText = '► Maintain Strategy A (Core Debt/Gold Buffer)';
-          actionBg = 'var(--green-bg)'; actionColor = 'var(--green)';
+        const v3Resp = await fetch(`/api/v3_hedge?fpi=${fpiWeekly}&beta=${portBeta.toFixed(3)}`);
+        const v3Json = await v3Resp.json();
+        if (v3Json.status === 'success') {
+          const v3d = v3Json.data;
+          const STAGE_MAP = {
+            "Stage 1 — Onset": { label: "Stage 1 — Early Warning", desc: "Volatility & FPI flows elevated. Pre-emptive hedge building." },
+            "Stage 2 — Active Phase": { label: "Stage 2 — Active Drawdown", desc: "Confirmed drawdown in progress. Linear scaling active." },
+            "Stage 3: Escalated (MAJOR minimum)": { label: "Stage 3 — Major Crash Floor", desc: "Drawdown ≥20%. Minimum 75% hedge enforced." },
+            "Stage 3: Escalated (SEVERE)": { label: "Stage 3 — Severe Crisis", desc: "Drawdown ≥15% + VIX spiking. Full 100% hedge." },
+            "Stage 3: Escalated (SEVERE unconditional)": { label: "Stage 3 — Full Hedge", desc: "Drawdown ≥25%. 100% hedge unconditional." },
+            "Stage 3: De-escalation Blocked (Gate closed)": { label: "Stage 3 — Holding (Gate Closed)", "desc": "Recovery incomplete. Hedge maintained at prior level." },
+          };
+          const si = STAGE_MAP[v3d.active_stage] || { label: v3d.active_stage, desc: "" };
+          await renderPlaybook(Math.round(v3d.beta_adjusted_target), si.label, si.desc);
+          return;
         }
-        actionEl.textContent = actionText;
-        actionEl.style.background = actionBg;
-        actionEl.style.color      = actionColor;
-
-        // ── Stage badge ──
-        if (stage.includes('Stage 3')) {
-          stageBadge.style.background = 'var(--red-bg)'; stageBadge.style.color = 'var(--red)'; stageBadge.style.borderColor = 'rgba(239,68,68,0.3)';
-        } else if (stage.includes('Stage 2')) {
-          stageBadge.style.background = 'var(--amber-bg)'; stageBadge.style.color = 'var(--amber)'; stageBadge.style.borderColor = 'rgba(245,158,11,0.3)';
-        } else {
-          stageBadge.style.background = 'var(--primary-bg)'; stageBadge.style.color = 'var(--primary)'; stageBadge.style.borderColor = 'rgba(37,99,235,0.2)';
-        }
-        stageBadge.textContent = stage.toUpperCase().replace(' — ', ' · ');
-
-        // ── Math breakdown ──
-        const breakdownEl = document.getElementById('v3p-math-breakdown');
-        const vix = inputs.vix ?? 18.5;
-        const dd  = diag.current_dd ?? 0;
-        const penalty = Math.abs(diag.s2_penalty ?? 0);
-
-        function buildFeatRow(name, val, isNeg) {
-          const maxC = Math.max(
-            Math.abs(12.5), Math.abs(0.52 * vix), Math.abs(0.48 * dd),
-            Math.abs(5.10 * vix * dd / 100), penalty, 0.1
-          );
-          const w = Math.min(Math.abs(val) / maxC * 100, 100);
-          const hue = 120 - w * 1.2;
-          const barColor = `hsl(${hue},98%,45%)`;
-          const sign = isNeg ? '-' : '+';
-          return `<div class="v3p-feat-row">
-            <div class="v3p-feat-name">${name}</div>
-            <div class="v3p-feat-bar-wrap"><div class="v3p-feat-bar-fill" style="width:${w.toFixed(0)}%;background:linear-gradient(90deg,hsl(120,95%,45%),${barColor});"></div></div>
-            <div class="v3p-feat-coef" style="color:${barColor};">${sign}${Math.abs(val).toFixed(1)}</div>
-          </div>`;
-        }
-
-        let mathHtml = '';
-        if (stage.includes('Stage 2') || stage.includes('Stage 3')) {
-          const tBase = 12.5, tVix = 0.52 * vix, tDd = 0.48 * dd, tInt = 5.10 * vix * dd / 100;
-          mathHtml = `
-            <div style="font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;color:var(--amber);margin-bottom:10px;">Active: Stage 2 (Linear Interaction)</div>
-            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);">
-              Alloc = 12.5 + 0.52·VIX + 0.48·DD% + 5.10·[VIX×DD%÷100] − Penalty · then × β(${portBeta.toFixed(2)})
-            </div>
-            ${buildFeatRow('Baseline Floor', tBase, false)}
-            ${buildFeatRow('VIX Component', tVix, false)}
-            ${buildFeatRow('DD% Component', tDd, false)}
-            ${buildFeatRow('VIX × DD% Panic', tInt, false)}
-            ${buildFeatRow('Time Penalty', penalty, true)}
-          `;
-        } else {
-          const score = diag.onset_score ?? 0;
-          mathHtml = `
-            <div style="font-family:var(--font-mono);font-size:10px;font-weight:600;text-transform:uppercase;color:var(--primary);margin-bottom:10px;">Active: Stage 1 (Sigmoid Onset)</div>
-            <div style="font-family:var(--font-mono);font-size:11px;color:var(--text);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);">
-              Score = 0.48·RV + 0.25·Gap + 0.15·FPI + 0.12·VIX → Sigmoid Notional · then × β(${portBeta.toFixed(2)})
-            </div>
-            <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">Regression weights driving onset score (${score.toFixed(1)})</div>
-            ${[['Realized Volatility', 48], ['100-DMA Gap', 25], ['FPI Outflow', 15], ['India VIX', 12]].map(([n, w]) => {
-              const hue = 120 - w * 1.2;
-              const barColor = `hsl(${hue},98%,45%)`;
-              return `<div class="v3p-feat-row">
-                <div class="v3p-feat-name">${n}</div>
-                <div class="v3p-feat-bar-wrap"><div class="v3p-feat-bar-fill" style="width:${w}%;background:linear-gradient(90deg,hsl(120,95%,45%),${barColor});"></div></div>
-                <div class="v3p-feat-coef" style="color:${barColor};">${w}%</div>
-              </div>`;
-            }).join('')}
-          `;
-        }
-        breakdownEl.innerHTML = mathHtml;
-
-        // ── Update playbook Strategy B with v3 target ──
-        const pbBModel = document.getElementById('pb-b-model');
-        if (pbBModel) {
-          const rupeeStr = portValue ? ` (${fmtINR(portValue * portBeta * betaAdj / 100)})` : '';
-          pbBModel.innerHTML = `<strong>${betaAdj.toFixed(1)}%</strong> of portfolio <span style="font-size:10px;color:var(--muted);">${rupeeStr}</span><br><span style="font-size:10px;color:var(--muted);">v3.2 engine · Stage: ${stage.replace(' — ',' · ')}</span>`;
-        }
-
-        // Store for reference
-        window._v3PortResult = { betaAdj, niftyBase, stage, diag, portBeta };
-
-      } catch (e) {
-        console.error('v3 portfolio engine failed:', e);
-        stageBadge.textContent = 'ENGINE OFFLINE';
-        stageBadge.style.background = 'var(--bg3)';
-        stageBadge.style.color = 'var(--muted)';
-        targetEl.textContent = 'N/A';
-        actionEl.textContent = 'Backend unavailable — using fallback Lasso model below';
-        actionEl.style.background = 'var(--bg3)';
-        actionEl.style.color = 'var(--muted)';
-        document.getElementById('v3p-math-breakdown').innerHTML = `<div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:4px;">Engine offline. Start the Flask backend and refresh.</div>`;
-      }
+      } catch (_) { }
+      // Fallback: Stage 2 equation with live VIX
+      const liveVix = window._liveVix || 20;
+      const liveDDSignal = window._liveDDSignal || 2;
+      const fallbackAlloc = Math.min(90, Math.max(10, Math.round(
+        12.5 + 0.52 * liveVix + 0.48 * liveDDSignal + 5.10 * (liveVix * liveDDSignal / 100)
+      )));
+      await renderPlaybook(fallbackAlloc, "v3.2 Engine Offline", "Using Stage 2 equation fallback.");
     }
 
     function showError(msg) {
@@ -2758,6 +2486,44 @@
       }
     }
 
+    async function downloadText() {
+      const btn = document.getElementById('btnText');
+      const status = document.getElementById('dlStatus');
+      const payload = getHoldingsPayload();
+      if (!payload) { status.textContent = 'Run analysis first.'; return; }
+
+      btn.disabled = true; btn.textContent = '⏳ Generating…';
+      status.textContent = 'Calling Python engine…';
+      try {
+        const resp = await fetch('/api/generate-text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) {
+          const errorText = await resp.text();
+          let errMsg = errorText;
+          try {
+            const err = JSON.parse(errorText);
+            errMsg = err.error || err.message || errorText;
+          } catch (_e) { errMsg = errorText; }
+          throw new Error(errMsg || `Server error ${resp.status}`);
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Institutional_Hedge_Report.txt';
+        a.click();
+        URL.revokeObjectURL(url);
+        status.textContent = '✅ Text report downloaded successfully.';
+      } catch (e) {
+        status.textContent = `❌ ${e.message}`;
+      } finally {
+        btn.disabled = false; btn.textContent = '⬇ Download Text Report (.txt)';
+      }
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // INIT
     // ═══════════════════════════════════════════════════════════════
@@ -2765,9 +2531,8 @@
 
     // Fetch live VIX and DMA gap from the backend cache so the playbook
     // model allocation uses real market data rather than static trigger values.
-    window._liveVix = 20;       // fallback
+    window._liveVix = 20;   // fallback
     window._liveDDSignal = 2;   // fallback
-    window._liveFpiWeekly = -1200; // fallback (₹ Cr/week)
     (async () => {
       try {
         const resp = await fetch('/api/live', { cache: 'no-cache' });
@@ -2775,11 +2540,9 @@
         const json = await resp.json();
         const d = json?.data;
         if (d) {
-          if (d.vix    != null) window._liveVix       = d.vix;
-          if (d.dmaGap != null) window._liveDDSignal  = Math.max(0, -d.dmaGap);
-          // fpiWeekly is user-entered on the main dashboard; use session storage if available
-          const storedFpi = sessionStorage.getItem('fpiWeekly');
-          if (storedFpi != null) window._liveFpiWeekly = parseFloat(storedFpi);
+          if (d.vix != null) window._liveVix = d.vix;
+          if (d.dmaGap != null) window._liveDDSignal = Math.max(0, -d.dmaGap);
+          if (d.fpiWeekly != null) window._liveFpiWeekly = d.fpiWeekly;
         }
       } catch { }
     })();
