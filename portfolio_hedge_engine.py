@@ -248,16 +248,22 @@ EPISODES = [
 ]
 
 # Actual hedge P&L (net) per episode per strategy
+# Values verified against dashboard.html PNL_MATRIX (May 2026 data-verified pass)
+# Corrections applied vs prior version:
+#   2010 Euro Debt  Gold: 5.77→6.55, USDINR: 1.97→2.31
+#   2015 China      Gold: 2.04→2.07
+#   2018 IL&FS      Gold: 0.35→0.07
+#   2026 Curr. DD   Gold: 1.58→1.73, USDINR: 0.54→0.48
 EPISODE_PNL = {
     "2000 Dot-com"   : [51.36, 48.75, 45.50,  None,  None, 18.55, 49.95, 36.74],
     "2004 Election"  : [29.94, 28.16, 24.44, -1.47,  0.02,  9.64, 29.36, 19.04],
     "2008 GFC"       : [59.86, 57.33, 54.06,  1.07,  2.68, 19.52, 58.53, 42.76],
-    "2010 Euro Debt" : [28.01, 26.04, 22.57,  5.77,  1.97, 10.59, 28.01, 25.85],
-    "2015 China"     : [22.52, 20.99, 17.31,  2.04,  1.05,  8.67, 22.52, 18.32],
-    "2018 IL&FS"     : [10.17,  8.36,  4.82,  0.35,  0.25,  3.33, 10.17,  6.75],
-    "2020 COVID"     : [38.44, 37.09, 33.30,  1.29,  0.69, 11.90, 38.44, 27.77],
+    "2010 Euro Debt" : [28.01, 26.04, 22.57,  6.55,  2.31, 10.59, 28.01, 25.85],
+    "2015 China"     : [22.52, 20.99, 17.31,  2.07,  1.10,  8.67, 22.52, 18.32],
+    "2018 IL&FS"     : [10.17,  8.36,  4.82,  0.07,  0.24,  3.33, 10.17,  6.75],
+    "2020 COVID"     : [38.44, 37.09, 33.30,  1.30,  0.69, 11.90, 38.44, 27.77],
     "2024 FII Exodus": [15.77, 14.63, 10.70,  2.07,  0.44,  5.58, 15.77, 13.11],
-    "2026 Curr. DD"  : [15.18, 14.33, 10.16,  1.58,  0.54,  5.02, 15.18, 12.09],
+    "2026 Curr. DD"  : [15.18, 14.33, 10.16,  1.73,  0.48,  5.02, 15.18, 12.09],
 }
 
 STRAT_KEYS = list(STRATEGIES.keys())
@@ -839,21 +845,51 @@ def generate_text_report(metrics, hedge_sizing, scenario_df, output_path, live_n
 
     lines += [
         "═" * 68,
-        "RECOMMENDED PLAYBOOK",
+        "RECOMMENDED PLAYBOOK  (Magnitude Hedging v3.2)",
         "═" * 68,
         "",
-        "  STRATEGY A (Always-On):",
+        "  HOW THE v3.2 ENGINE WORKS:",
+        "  ─────────────────────────────────────────────────────────────────",
+        "  Stage 1 — Early Warning (Sigmoid Onset)",
+        "    Fires when volatility (RV/VIX) and FPI outflows are elevated.",
+        "    Uses a sigmoid curve so the hedge builds gradually, not in jumps.",
+        "    Equation: Score = 0.48·RV + 0.25·DMA-Gap + 0.15·FPI + 0.12·VIX",
+        "",
+        "  Stage 2 — Active Drawdown (Linear Interaction)",
+        "    Fires once a confirmed peak-to-trough drawdown is underway.",
+        "    Equation: Alloc = 12.5 + 0.52·VIX + 0.48·DD% + 5.10·[VIX×DD%÷100] - Penalty",
+        "    Penalty reduces the allocation the longer the drawdown runs",
+        "    (prevents overpaying premium in prolonged slow-bleed drawdowns).",
+        "",
+        "  Stage 3 — Escalation Overrides (Hard Glass-Smash Rules)",
+        "    DD ≥ 20%          → Minimum 75% hedge enforced",
+        "    DD ≥ 15% + VIX>28 → Full 100% hedge",
+        "    DD ≥ 25%          → Full 100% hedge unconditional",
+        "",
+        "  De-escalation Gate (Memory State)",
+        "    Once a high hedge is set, it is NOT reduced until:",
+        "    (a) 50% of the drawdown is recovered, AND",
+        "    (b) VIX and RV have stayed below their thresholds for 10 days.",
+        "    This prevents false re-entry after a dead-cat bounce.",
+        "  ─────────────────────────────────────────────────────────────────",
+        "",
+        "  STRATEGY A (Always-On — no trigger required):",
         "    Keep 20% Liquid Debt + 10% Gold at all times.",
         f"    This immediately reduces your effective β from {pb:.2f} to ~{pb*0.70:.2f}.",
+        "    Annual drag: ~0.15–0.30%.",
         "",
-        "  STRATEGY B (Tactical):",
-        "    Trigger: 2-of-3 signals (VIX>20, Nifty<100-DMA by -2%, FII outflow)",
-        f"    Buy ATM Nifty Puts on {pb*100:.0f}% portfolio notional.",
-        "    Hold for 1 month, roll if signals still active.",
+        "  STRATEGY B (Tactical — v3.2 Stage 1 or 2 active):",
+        "    Trigger: 2-of-3 signals (VIX>20, Nifty<100-DMA by -2%, FPI net outflow).",
+        f"    Your Nifty-equivalent exposure: {pb*100:.0f}% of portfolio notional.",
+        "    The v3.2 engine determines exact put allocation (typically 20–75%)",
+        "    based on live VIX, drawdown depth, and FPI flow — see dashboard for",
+        "    the current Beta-Adjusted Target shown in the Stage indicator.",
+        "    Hold for 1 month, roll if signals still active. Exit when VIX < 15.",
         "",
-        "  STRATEGY C (Crisis):",
+        "  STRATEGY C (Crisis — Stage 3 active / VIX > 28):",
         f"    Short Nifty Futures covering {pb*100:.0f}% notional.",
-        "    Combine with Strategy B collars to reduce cost.",
+        "    Combine with Strategy B collars to reduce premium cost.",
+        "    Never exceed 75% notional in short futures.",
         "",
         "═" * 68,
         "CAVEATS",
@@ -943,6 +979,44 @@ def generate_docx_report(metrics, hedge_sizing, scenario_df, output_path, live_n
         p2.add_run(f"Annual Drag: {drag_str}\n")
         p2.add_run(f"Trigger: {st['trigger']}\n")
         p2.add_run(f"Note: {st['note']}")
+
+    # 5. v3.2 Engine Guide
+    doc.add_heading('MAGNITUDE HEDGING v3.2 — STAGE GUIDE', level=1)
+    p_v3 = doc.add_paragraph()
+    p_v3.add_run('How the Engine Stages Work').bold = True
+    p_v3.add_run(
+        'Stage 1 — Early Warning (Sigmoid Onset): Fires when realised volatility and FPI outflows '
+        'are elevated before a confirmed drawdown. The hedge builds gradually using a sigmoid curve. '
+        'Score = 0.48·RV + 0.25·DMA-Gap + 0.15·FPI + 0.12·VIX.'
+        'Stage 2 — Active Drawdown (Linear Interaction): Fires once a peak-to-trough drawdown is '
+        'confirmed. Alloc = 12.5 + 0.52·VIX + 0.48·DD% + 5.10·[VIX×DD%÷100] - TimePenalty. '
+        'The time penalty reduces the allocation in prolonged slow-bleed drawdowns.'
+        'Stage 3 — Escalation Overrides: Hard glass-smash rules. DD≥20% forces minimum 75% hedge. '
+        'DD≥15% with VIX>28 forces 100%. DD≥25% forces 100% unconditionally.'
+        'De-escalation Gate: Once a high hedge is set, it is NOT reduced until (a) 50% of the '
+        'drawdown is recovered AND (b) VIX and RV have stayed below thresholds for 10 consecutive days. '
+        'This prevents false re-entry after a dead-cat bounce.'
+    )
+
+    # 6. Recommended Playbook
+    doc.add_heading('RECOMMENDED PLAYBOOK', level=1)
+    p_pb = doc.add_paragraph()
+    p_pb.add_run('Strategy A — Always-On Core Defence').bold = True
+    p_pb.add_run(
+        f'Keep ≥20% Liquid Debt + 10% Gold at all times. '
+        f'This reduces your effective β from {pb:.2f} to ~{pb*0.70:.2f}. Annual drag: ~0.15–0.30%.'
+    )
+    p_pb.add_run('Strategy B — Tactical ATM Put Hedge (Stage 1 or 2 active)').bold = True
+    p_pb.add_run(
+        f'Trigger: 2-of-3 signals (VIX>20, Nifty<100-DMA by -2%, FPI net outflow). '
+        f'Buy ATM Nifty Puts on {pb*100:.0f}% portfolio notional. '
+        'Size to the v3.2 Beta-Adjusted Target %. Hold 1 month, roll if signals persist.'
+    )
+    p_pb.add_run('Strategy C — Crisis Short Futures (Stage 3 / VIX > 28)').bold = True
+    p_pb.add_run(
+        f'Short Nifty Futures covering {pb*100:.0f}% notional. '
+        'Combine with collars to reduce cost. Never exceed 75% notional short.'
+    )
 
     doc.save(output_path)
 
