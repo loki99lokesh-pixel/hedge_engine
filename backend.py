@@ -12,9 +12,6 @@ import requests
 import yfinance as yf
 from flask import Flask, jsonify, send_from_directory, request, send_file, Response
 
-import yfinance as yf
-from flask import Flask, jsonify, send_from_directory, request, send_file, Response
-
 import portfolio_hedge_engine as phe
 
 app = Flask(__name__, static_folder='.', static_url_path='')
