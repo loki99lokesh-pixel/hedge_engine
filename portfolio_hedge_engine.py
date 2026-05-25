@@ -1096,10 +1096,15 @@ def norm_fpi(fpi):
     else:
         return max(-50.0, (-fpi) / 8000.0 * 100.0) # Inflow
 
-def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, state, ret_5d):
+def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, state, ret_5d,
+                                  new_calendar_day=True):
     """
     Evaluates v3.2 logic. Requires previous state dictionary to manage 
     the De-escalation Gate (Fix 7) and Drawdown penalties.
+    
+    new_calendar_day: True if this call is on a different UTC date from the
+    previous call. Controls whether low_vol_days advances. Prevents the gate
+    from clearing after N browser refreshes instead of N real calendar days.
     """
     # 1. Update Peak, Trough & Drawdown
     peak = max(state.get('peak_price', current_price), current_price)
@@ -1109,8 +1114,12 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
     if dd_pct == 0:
         trough = current_price # Reset trough if we are at a new high
 
+    # days_in_dd must only advance once per real calendar day, not on every
+    # browser refresh. Incrementing on every API call inflated the time penalty,
+    # suppressed s2_target, and caused the de-escalation gate to fire after a
+    # single page refresh (Stage 1 → 'Stage 3: De-escalation Blocked').
     if dd_pct > 0:
-        days_in_dd = state.get('days_in_dd', 0) + 1
+        days_in_dd = state.get('days_in_dd', 0) + (1 if new_calendar_day else 0)
     else:
         days_in_dd = 0
 
@@ -1141,22 +1150,30 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
         active_stage = "Stage 2 — Active Phase"
 
     # 5. Stage 3: Escalation Overrides (Hard Glass-Smash)
+    # MAJOR: DD >= 20% regardless of vol — force minimum 75% hedge
     if dd_pct >= 20:
         final_target = max(final_target, 75.0)
         active_stage = "Stage 3: Escalated (MAJOR minimum)"
-    if dd_pct >= 15 and (rv20d > 22 or vix > 28):
+    # SEVERE: DD >= 15% AND genuinely elevated realised vol (rv20d > 28) OR VIX crisis (> 28)
+    # Threshold raised from rv20d > 22 to rv20d > 28 to prevent false triggers when
+    # rv20d was aliased to vix (now fixed, but the threshold aligns with the VIX crisis bar)
+    if dd_pct >= 15 and (rv20d > 28 or vix > 28):
         final_target = 100.0
         active_stage = "Stage 3: Escalated (SEVERE)"
+    # UNCONDITIONAL SEVERE: DD >= 25% is a deep bear regardless of vol
     if dd_pct >= 25:
         final_target = 100.0
         active_stage = "Stage 3: Escalated (SEVERE unconditional)"
 
     # 6. Fix 7: De-escalation Gate (Memory Check)
+    # low_vol_days must count real calendar days, not API call count.
+    # Only advance when new_calendar_day=True (backend supplies this).
     low_vol_days = state.get('low_vol_days', 0)
-    if rv20d < 22 and vix < 20: 
-        low_vol_days += 1
-    else:
-        low_vol_days = 0
+    if new_calendar_day:
+        if rv20d < 22 and vix < 20:
+            low_vol_days += 1
+        else:
+            low_vol_days = 0  # reset the streak if vol spikes on any day
 
     # Calculate 50% recovery ratio
     recovery_ratio = 0
@@ -1165,11 +1182,27 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
 
     # Prevent dropping the hedge if the gate conditions are not fully met
     prev_hedge = state.get('prev_hedge', 0)
-    if prev_hedge > final_target and "Stage 3" not in active_stage:
+
+    # If we have returned to a new all-time high (dd_pct == 0), the drawdown
+    # is fully over — reset prev_hedge so the gate doesn't persist indefinitely.
+    if dd_pct == 0:
+        prev_hedge = 0
+
+    # Gate tolerance: use a 1% band instead of strict >.  The sigmoid in
+    # get_continuous_notional() produces irrational floats.  A 0.1-point
+    # change in vix between two browser refreshes can produce a final_target
+    # that is microscopically smaller than prev_hedge (e.g. 39.3685 vs
+    # 39.3686), silently triggering the gate and flipping Stage 1 → Stage 3.
+    # A 1% dead-band is negligible operationally but eliminates all false fires.
+    if prev_hedge > final_target + 1.0 and "Stage 3" not in active_stage:
         gate_cleared = (recovery_ratio > 0.50) and (low_vol_days >= 10)
         if not gate_cleared:
             final_target = prev_hedge # Block the drop, maintain previous hedge
             active_stage = "Stage 3: De-escalation Blocked (Gate closed)"
+
+    # Round to 1 decimal before saving to prevent irrational sigmoid floats
+    # from accumulating precision drift across many refreshes.
+    final_target = round(final_target, 1)
 
     # 7. Compile Final State and Diagnostics
     new_state = {
