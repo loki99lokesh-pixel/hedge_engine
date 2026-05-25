@@ -2315,6 +2315,9 @@
       const niftyNotional = portValue ? ` = ${fmtINR(portValue * portBeta)}` : '';
       async function renderPlaybook(modelAlloc, stageLabel, stageDesc) {
         const stratBAlloc = portValue ? ` (${fmtINR(portValue * portBeta * modelAlloc / 100)})` : '';
+        const isStage3 = stageLabel.includes('Stage 3');
+        const stageBg = isStage3 ? 'var(--red-bg)' : stageLabel.includes('Stage 2') ? 'var(--amber-bg)' : 'var(--primary-bg)';
+        const stageColor = isStage3 ? 'var(--red)' : stageLabel.includes('Stage 2') ? 'var(--amber)' : 'var(--primary)';
         document.getElementById('playbookGrid').innerHTML = `
     <div class="pb-card">
       <div class="pb-header">
@@ -2330,12 +2333,16 @@
         <div class="pb-row"><span class="pb-row-lbl">Annual Drag</span><span class="pb-row-val">~0.15–0.30%</span></div>
       </div>
     </div>
-    <div class="pb-card">
+    <div class="pb-card" style="${isStage3 ? 'border-color:var(--red);' : ''}">
       <div class="pb-header">
         <div class="pb-letter b">B</div>
         <div><div class="pb-title">Tactical ATM Put Hedge</div><div class="pb-subtitle">VIX > 20 · 2-of-3 signals active</div></div>
       </div>
       <div class="pb-body">
+        <div class="pb-row" style="background:${stageBg};border-radius:4px;padding:6px 8px;border:none;margin-bottom:4px;flex-direction:column;align-items:flex-start;gap:2px;">
+          <span style="font-family:var(--font-mono);font-size:10px;font-weight:700;color:${stageColor};">${stageLabel}</span>
+          ${stageDesc ? `<span style="font-size:11px;color:var(--muted2);">${stageDesc}</span>` : ''}
+        </div>
         <div class="pb-row"><span class="pb-row-lbl">Trigger</span><span class="pb-row-val amber">2-of-3: VIX / DMA / FPI</span></div>
         <div class="pb-row"><span class="pb-row-lbl">Nifty Notional</span><span class="pb-row-val">${(portBeta * 100).toFixed(0)}% of portfolio${niftyNotional}</span></div>
         <div class="pb-row"><span class="pb-row-lbl">Model Alloc</span><span class="pb-row-val">${modelAlloc}%${stratBAlloc}</span></div>
