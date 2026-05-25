@@ -22,20 +22,44 @@ try:
 except ImportError:
     pass
 
-STATE_FILE = "v3_state.json"
+V3_STATE_KEY = "v3_engine_state"
+
+_V3_STATE_DEFAULTS = {
+    'peak_price'  : 0,
+    'trough_price': float('inf'),
+    'days_in_dd'  : 0,
+    'low_vol_days': 0,
+    'prev_hedge'  : 0,
+    'last_date'   : '',
+}
 
 def load_v3_state():
-    if os.path.exists(STATE_FILE):
-        try:
-            with open(STATE_FILE, 'r') as f:
-                return json.load(f)
-        except:
-            pass
-    return {'peak_price': 0, 'trough_price': float('inf'), 'days_in_dd': 0, 'low_vol_days': 0, 'prev_hedge': 0}
+    """Load v3 engine state from Redis (or LOCAL_CACHE in dev).
+    Falls back to safe defaults if the key is missing or corrupt.
+    NOTE: trough_price is stored as a large finite sentinel (1e15) because
+    JSON cannot round-trip float('inf'). It is converted back on load."""
+    try:
+        data = get_state(V3_STATE_KEY)
+        if data and isinstance(data, dict):
+            # Restore sentinel back to inf so engine comparisons work correctly
+            if data.get('trough_price', 0) >= 1e14:
+                data['trough_price'] = float('inf')
+            return data
+    except Exception as e:
+        print(f"[load_v3_state] Error reading state: {e}")
+    return dict(_V3_STATE_DEFAULTS)
 
 def save_v3_state(state):
-    with open(STATE_FILE, 'w') as f:
-        json.dump(state, f)
+    """Persist v3 engine state to Redis (or LOCAL_CACHE in dev).
+    float('inf') is replaced with a large finite sentinel (1e15) because
+    JSON does not support Infinity natively."""
+    try:
+        serialisable = dict(state)
+        if serialisable.get('trough_price') == float('inf'):
+            serialisable['trough_price'] = 1e15   # sentinel: restored on load
+        save_state(V3_STATE_KEY, serialisable)
+    except Exception as e:
+        print(f"[save_v3_state] Error saving state: {e}")
 
 @app.errorhandler(405)
 def method_not_allowed(e):
