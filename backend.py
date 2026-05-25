@@ -101,6 +101,17 @@ else:
     LOCAL_CACHE = {
         'dma'              : 23521.0,   # approximate 100-DMA seed
         'rolling_high_180d': 26277.0,   # recent 6M peak — gives max caution locally
+        # Seed live_market_data so local runs without Redis get the same
+        # field structure as Render. The background thread overwrites this
+        # within seconds of startup; these values are only used if the
+        # first /api/v3_hedge call races ahead of the first fetch.
+        'live_market_data' : {
+            'nifty'           : 24000.0,
+            'vix'             : 18.5,
+            'dd_from_peak_pct': -8.5,   # representative current drawdown
+            'dmaGap'          : -3.5,
+            'ret_5d'          : -1.2,
+        },
     }
 
 def save_state(key, data):
@@ -619,10 +630,16 @@ def get_v3_magnitude_hedge():
         gap_pct          = cached.get('dmaGap', 0)               # kept for inputs_used log
         vix              = cached.get('vix', 18.5)
 
-        # rv20d: compute a proper annualised realised-vol proxy from the 5-day return.
-        # Directly aliasing rv20d = vix was the primary bug: the SEVERE check
-        # (dd >= 15% AND rv20d > 22) fired whenever VIX > 22, which is just
-        # moderate caution territory — far too sensitive.
+        # BUG FIX: ret_5d MUST be read from cache before rv20d is computed.
+        # The original code placed this assignment AFTER the rv20d try-block,
+        # so ret_5d was always an undefined name inside the try, causing a
+        # NameError that silently fell through to 'except Exception' on every
+        # call. Result: rv20d was always vix*0.65 (the floor), never the actual
+        # realised-vol from price movement. On Render this inflated rv20d vs
+        # local because Render had a bootstrapped state with real VIX data.
+        ret_5d = cached.get('ret_5d', 0.0)
+
+        # rv20d: proper annualised realised-vol proxy from the 5-day return.
         # Formula: daily_move = |ret_5d| / sqrt(5), annualised = daily_move * sqrt(252).
         # Floored at vix * 0.65 (RV is typically ~65-80% of IV) so it never
         # collapses to zero on a quiet 5-day window.
@@ -633,10 +650,6 @@ def get_v3_magnitude_hedge():
             rv20d       = round(max(rv20d_floor, rv20d_raw), 2)
         except Exception:
             rv20d = vix * 0.65
-
-        # 5-day return: derive from current price vs 5-day-ago close if available,
-        # otherwise fall back to 0 (neutral — no Mixed Signal Filter bias)
-        ret_5d = cached.get('ret_5d', 0.0)
 
         # 2. FPI weekly outflow — read from query param sent by the dashboard
         # Dashboard sends live.fpiWeekly (user-entered via the ✎ edit field)
