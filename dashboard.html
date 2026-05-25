@@ -1526,7 +1526,7 @@
             <strong id="diag-penalty" style="font-size:18px; color:var(--red);">--</strong>
           </div>
           <div style="background: var(--bg); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
-            <span style="color:var(--muted); font-size:10px; text-transform:uppercase;">Drawdown %</span> <br>
+            <span style="color:var(--muted); font-size:10px; text-transform:uppercase;">DD from 6M Peak</span> <br>
             <strong id="diag-dd" style="font-size:18px; color:var(--text);">--</strong>
           </div>
           <div
@@ -1774,7 +1774,12 @@
         (function runJsFallback() {
           try {
             const vix = live.vix ?? 17.9;
-            const ddSignal = live.dmaGap != null ? Math.max(0, -live.dmaGap) : 1.3;
+            // DD signal: how far below the 6-month rolling high are we?
+            // This captures drawdowns earlier than the hard 10% threshold.
+            // Falls back to dmaGap if rolling high not yet available.
+            const ddSignal = live.dd_from_peak_pct != null
+              ? Math.max(0, -live.dd_from_peak_pct)
+              : (live.dmaGap != null ? Math.max(0, -live.dmaGap) : 1.3);
             const fpi = live.fpiWeekly ?? -1200;
 
             // Stage 1 onset score (weights match backend calculate_v3_magnitude_hedge)
@@ -2214,6 +2219,7 @@
     let live = {
       vix: null, nifty: null, usdinr: null, goldUSD: null, brent: null,
       goldINR: null, ytd: null, dmaGap: null,
+      rolling_high_180d: null, dd_from_peak_pct: null,
       fpiYTD: -210000,     // ₹ Cr YTD — context display only
       fpiWeekly: -6000,    // ₹ Cr current week — SIGNAL trigger (< -5000 = active)
       fpiActive: true,     // driven by fpiWeekly < -5000 (not YTD)
@@ -2310,9 +2316,10 @@
     function applyBackendLiveData(data) {
       if (!data) return false;
       // Copy all live market fields the backend provides
-      ['nifty', 'vix', 'usdinr', 'goldUSD', 'brent', 'goldINR', 'ytd', 'dmaGap', 'dma_used'].forEach(k => {
-        if (data[k] != null) live[k] = data[k];
-      });
+      ['nifty', 'vix', 'usdinr', 'goldUSD', 'brent', 'goldINR', 'ytd', 'dmaGap', 'dma_used',
+        'rolling_high_180d', 'dd_from_peak_pct'].forEach(k => {
+          if (data[k] != null) live[k] = data[k];
+        });
       // BUG 1 FIX: also copy prevClose_* fields so the day-change arrows (changeArrow())
       // work correctly when the backend path is taken. These are produced by get_prev_close()
       // in fetch_live_data() and were previously silently ignored here.
@@ -2416,6 +2423,10 @@
         if (live.nifty) {
           live.ytd = ((live.nifty / NIFTY_JAN1) - 1) * 100;
           live.dmaGap = ((live.nifty / live.dma_used) - 1) * 100;
+          // Use seeded rolling_high_180d if backend hasn't provided one yet
+          if (live.rolling_high_180d) {
+            live.dd_from_peak_pct = ((live.nifty / live.rolling_high_180d) - 1) * 100;
+          }
         }
         const anyLive = ['nifty', 'vix', 'usdinr', 'goldUSD', 'brent'].some(k => sourceLog[k] && sourceLog[k] !== 'seeded');
         finalizeDataUpdate(anyLive ? 'proxy' : 'seeded');
@@ -2990,7 +3001,8 @@
     const FALLBACK = {
       vix: 17.9, nifty: 24386, usdinr: 84.52, goldUSD: 3295, brent: 65.4,
       dma_used: 23521, fpiYTD: -210000,
-      fpiWeekly: -6000,   // seed: active outflow week (drives signal; update via ✎)
+      fpiWeekly: -6000,      // seed: active outflow week (drives signal; update via ✎)
+      rolling_high_180d: 26277,  // seed: recent 6-month peak — gives max caution offline
     };
     const stored = loadFromStorage();
     const initData = stored || FALLBACK;
@@ -2999,6 +3011,8 @@
     live.goldINR = (live.goldUSD * live.usdinr) / 31.1035;
     live.ytd = ((live.nifty / NIFTY_JAN1) - 1) * 100;
     live.dmaGap = ((live.nifty / live.dma_used) - 1) * 100;
+    // Drawdown from 6-month rolling high — used as DD% input to the model
+    live.dd_from_peak_pct = ((live.nifty / live.rolling_high_180d) - 1) * 100;
     // FIX #4: weekly flow drives the signal (threshold -5000 Cr/week)
     if (live.fpiWeekly != null) {
       live.fpiActive = live.fpiWeekly < -5000;
