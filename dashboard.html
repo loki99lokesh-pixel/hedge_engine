@@ -1294,6 +1294,58 @@
     </div>
 
     <div class="section-head">Live Market Signals</div>
+
+    <!-- ── FPI Update Prompt ── shown until user enters values this session -->
+    <div id="fpiPromptBanner" style="
+        display:flex; align-items:flex-start; gap:14px;
+        background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px;
+        padding:12px 16px; margin-bottom:16px; font-size:13px;">
+      <span style="font-size:18px; flex-shrink:0; margin-top:1px;">📋</span>
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:600; color:#92400E; margin-bottom:3px;">
+          FPI data requires manual entry — results use a seeded baseline until updated
+        </div>
+        <div style="color:#B45309; line-height:1.6; font-size:12px;">
+          FPI flows are not available via any free API. The engine uses a
+          <strong>hardcoded baseline</strong> (YTD: −₹2.22L Cr, seeded 25 May 2026).
+          For accurate signals, enter the last 5 trading days' equity values from NSDL —
+          <strong>Investments → Equity column only</strong> (not Debt, Hybrid, or Derivatives):
+          <br style="margin-bottom:4px;">
+          &nbsp;• Open
+          <a href="https://www.fpi.nsdl.co.in/web/Reports/Archive.aspx" target="_blank" rel="noopener"
+            style="color:#2563EB; font-weight:600; text-decoration:underline;">
+            NSDL Archive Report ↗
+          </a>
+          → <strong>set the date field to today's date</strong> → click Search
+          → note the Equity column values for each of the last 5 trading days (Mon–Fri)
+          <br>
+          &nbsp;• <strong>YTD equity (Jan 1 to date)</strong>: Grand Total row → Equity column
+          (calendar year, not financial year)
+        </div>
+        <div style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <button onclick="scrollToFpiAndOpen()" style="
+              font-family:var(--font-mono); font-size:11px; font-weight:600;
+              padding:5px 12px; border-radius:5px; cursor:pointer;
+              background:#2563EB; color:#fff; border:none;">
+            ✎ Enter FPI Now
+          </button>
+          <button onclick="dismissFpiPrompt()" style="
+              font-family:var(--font-mono); font-size:11px; font-weight:500;
+              padding:5px 10px; border-radius:5px; cursor:pointer;
+              background:transparent; color:#92400E; border:1px solid #FDE68A;">
+            Dismiss (use baseline)
+          </button>
+          <span style="font-family:var(--font-mono); font-size:10px; color:#B45309;">
+            · Update weekly · Equity column only · Calendar year (not financial year)
+          </span>
+        </div>
+      </div>
+      <button onclick="dismissFpiPrompt()" style="
+          background:transparent; border:none; cursor:pointer;
+          color:#B45309; font-size:16px; flex-shrink:0; padding:0 2px;
+          line-height:1;" title="Dismiss">✕</button>
+    </div>
+
     <div class="tiles">
 
       <div class="tile neutral" id="tile-vix">
@@ -1369,22 +1421,75 @@
         <div class="tile-label">FPI Flows
           <span style="font-size:9px; font-family:var(--font-mono); color:var(--muted); cursor:pointer;"
             onclick="toggleFpiEdit()" title="Click to update">✎</span>
+          <span id="fpi-custom-badge" style="display:none; font-size:9px; font-family:var(--font-mono);
+            background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; border-radius:3px;
+            padding:1px 5px; margin-left:4px; cursor:pointer;" onclick="resetFpiToBaseline()"
+            title="Custom value active — click to reset to baseline">CUSTOM ↺</span>
         </div>
         <div class="tile-value" id="val-fpi">−₹2.1L Cr</div>
         <div class="tile-status" id="st-fpi" style="background:#FEE2E2; color:#DC2626">SELLER</div>
-        <div class="fpi-note">YTD (NSDL) · Signal uses weekly flow · click ✎</div>
+        <div class="fpi-note">NSDL seeded · Signal = 5-day sum · click ✎</div>
         <div class="fpi-input-row" id="fpi-edit-row" style="display:none;">
-          <div style="display:flex;flex-direction:column;gap:4px;width:100%;">
+          <div style="display:flex;flex-direction:column;gap:5px;width:100%;">
+            <!-- YTD field -->
             <div style="display:flex;align-items:center;gap:4px;">
-              <span style="font-family:var(--font-mono);font-size:9px;color:var(--muted);width:52px;">YTD Cr:</span>
-              <input class="fpi-input" id="fpi-input" type="number" placeholder="-210000" step="1000" style="flex:1;">
+              <span
+                style="font-family:var(--font-mono);font-size:9px;color:var(--muted);width:36px;flex-shrink:0;">YTD:</span>
+              <input class="fpi-input" id="fpi-input" type="number" placeholder="-222343" step="1000" style="flex:1;"
+                title="Calendar YTD FPI equity flow in ₹ Cr (Jan 1 to date) — NSDL Archive → Grand Total row → Equity column. Calendar year only, not financial year.">
             </div>
-            <div style="display:flex;align-items:center;gap:4px;">
-              <span style="font-family:var(--font-mono);font-size:9px;color:var(--muted);width:52px;">Wk Cr:</span>
-              <input class="fpi-input" id="fpi-weekly-input" type="number" placeholder="-5000" step="100"
-                style="flex:1;">
+            <!-- Separator -->
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);padding:2px 0 1px;">
+              Last 5 trading days — Equity col (₹ Cr):
             </div>
-            <button class="fpi-set-btn" onclick="applyFpiOverride()" style="width:100%;">Set Both</button>
+            <!-- 5 daily fields -->
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:3px;">
+              <div style="display:flex;flex-direction:column;gap:2px;align-items:center;">
+                <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);">Mon</span>
+                <input class="fpi-input fpi-day-input" id="fpi-day-0" data-day="0" type="number" step="0.01"
+                  placeholder="0" style="width:100%;text-align:center;padding:4px 2px;font-size:10px;"
+                  title="Monday FPI equity flow (₹ Cr)" oninput="fpiDailyChanged()">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px;align-items:center;">
+                <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);">Tue</span>
+                <input class="fpi-input fpi-day-input" id="fpi-day-1" data-day="1" type="number" step="0.01"
+                  placeholder="0" style="width:100%;text-align:center;padding:4px 2px;font-size:10px;"
+                  title="Tuesday FPI equity flow (₹ Cr)" oninput="fpiDailyChanged()">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px;align-items:center;">
+                <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);">Wed</span>
+                <input class="fpi-input fpi-day-input" id="fpi-day-2" data-day="2" type="number" step="0.01"
+                  placeholder="0" style="width:100%;text-align:center;padding:4px 2px;font-size:10px;"
+                  title="Wednesday FPI equity flow (₹ Cr)" oninput="fpiDailyChanged()">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px;align-items:center;">
+                <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);">Thu</span>
+                <input class="fpi-input fpi-day-input" id="fpi-day-3" data-day="3" type="number" step="0.01"
+                  placeholder="0" style="width:100%;text-align:center;padding:4px 2px;font-size:10px;"
+                  title="Thursday FPI equity flow (₹ Cr)" oninput="fpiDailyChanged()">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px;align-items:center;">
+                <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);">Fri</span>
+                <input class="fpi-input fpi-day-input" id="fpi-day-4" data-day="4" type="number" step="0.01"
+                  placeholder="0" style="width:100%;text-align:center;padding:4px 2px;font-size:10px;"
+                  title="Friday FPI equity flow (₹ Cr)" oninput="fpiDailyChanged()">
+              </div>
+            </div>
+            <!-- Live weekly sum preview -->
+            <div id="fpi-weekly-sum" style="font-family:var(--font-mono);font-size:10px;
+              background:var(--bg3);border-radius:4px;padding:4px 6px;text-align:center;
+              border:1px solid var(--border);">
+              Week total: <strong id="fpi-sum-val">—</strong>
+              <span id="fpi-sum-signal" style="margin-left:4px;font-size:9px;"></span>
+            </div>
+            <div id="fpi-input-error" style="display:none; font-size:9px; font-family:var(--font-mono);
+              color:#DC2626; line-height:1.4; padding:2px 0;"></div>
+            <div style="display:flex;gap:4px;">
+              <button class="fpi-set-btn" onclick="applyFpiOverride()" style="flex:2;">Set</button>
+              <button class="fpi-set-btn" onclick="resetFpiToBaseline()"
+                style="flex:1; border-color:#F59E0B; color:#92400E; background:#FFFBEB;"
+                title="Reset to seeded baseline">↺ Reset</button>
+            </div>
           </div>
         </div>
       </div>
@@ -2213,6 +2318,28 @@
     const BRENT_STAGFLATION = 95.0;
     const GOLD_52W_HIGH = 3500;   // 52W high ref (May 2026); update manually each quarter
 
+    // ─────────────────────────────────────────────────────────────
+    // FPI BASELINE — single source of truth; update weekly from NSDL
+    // Source: https://www.fpi.nsdl.co.in/web/Reports/Archive.aspx
+    //         Set date to today → Equity column → Grand Total row (YTD)
+    //         and Equity column for each of the last 5 trading days.
+    // This value is NEVER overwritten by user input or localStorage.
+    // User edits are session-only and shown with a "CUSTOM" badge.
+    // Last seeded: 25 May 2026
+    // ─────────────────────────────────────────────────────────────
+    const BASELINE_FPI = {
+      ytd: -222343,   // ₹ Cr — Calendar YTD (Jan 1 – 25 May 2026), Equity column Grand Total
+      // Last 5 trading days' FPI equity values (₹ Cr), most recent last [Mon, Tue, Wed, Thu, Fri]
+      daily: [-1791.08, -2278.61, -3644.35, 2168.78, 2219.43]
+    };
+    // Derived: weekly sum from the 5 daily values above
+    BASELINE_FPI.weekly = BASELINE_FPI.daily.reduce((s, v) => s + v, 0); // = -3325.83
+    // Clamp limits — any value outside these is rejected as implausible
+    const FPI_CLAMP = {
+      ytdMin: -600000, ytdMax: 300000,
+      dayMin: -30000, dayMax: 20000   // per-day clamp (₹ Cr)
+    };
+
     // ═══════════════════════════════════════════════════════════
     // LIVE STATE
     // ═══════════════════════════════════════════════════════════
@@ -2220,9 +2347,11 @@
       vix: null, nifty: null, usdinr: null, goldUSD: null, brent: null,
       goldINR: null, ytd: null, dmaGap: null,
       rolling_high_180d: null, dd_from_peak_pct: null,
-      fpiYTD: -210000,     // ₹ Cr YTD — context display only
-      fpiWeekly: -6000,    // ₹ Cr current week — SIGNAL trigger (< -5000 = active)
-      fpiActive: true,     // driven by fpiWeekly < -5000 (not YTD)
+      fpiYTD: BASELINE_FPI.ytd,              // ₹ Cr YTD — context display only
+      fpiDailyValues: [...BASELINE_FPI.daily], // last 5 trading days' equity flows (₹ Cr)
+      fpiWeekly: BASELINE_FPI.weekly,          // ₹ Cr current week sum — SIGNAL trigger (< -5000 = active)
+      fpiActive: BASELINE_FPI.weekly < -5000,  // driven by fpiWeekly < -5000 (not YTD)
+      fpiOverridden: false,                    // true when user has entered a custom value this session
       dataSource: 'seeded',
       dma_used: 23521,
       // Permanent market opening baselines locked at session start
@@ -2233,34 +2362,140 @@
     let intradaySeries = [];
 
     // ═══════════════════════════════════════════════════════════
-    // FPI MANUAL OVERRIDE (FIX #2)
+    // FPI MANUAL OVERRIDE — session-only, validated, clamped
     // ═══════════════════════════════════════════════════════════
+    // ── FPI daily helper: compute sum from the 5 daily inputs ──
+    function fpiDailySum() {
+      let sum = 0;
+      for (let i = 0; i < 5; i++) {
+        const v = parseFloat(document.getElementById('fpi-day-' + i)?.value);
+        if (!isNaN(v)) sum += v;
+      }
+      return sum;
+    }
+
+    // ── Called on any daily-input change to update the live sum preview ──
+    function fpiDailyChanged() {
+      const sum = fpiDailySum();
+      const sumEl = document.getElementById('fpi-sum-val');
+      const sigEl = document.getElementById('fpi-sum-signal');
+      if (sumEl) {
+        sumEl.textContent = (sum >= 0 ? '+' : '') + sum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Cr';
+        sumEl.style.color = sum < -5000 ? '#DC2626' : sum < 0 ? '#D97706' : '#059669';
+      }
+      if (sigEl) {
+        sigEl.textContent = sum < -5000 ? '⚡ SIGNAL ACTIVE' : sum < 0 ? '⚠ Below zero' : '✓ Net inflow';
+        sigEl.style.color = sum < -5000 ? '#DC2626' : sum < 0 ? '#D97706' : '#059669';
+      }
+    }
+
     function toggleFpiEdit() {
       const row = document.getElementById('fpi-edit-row');
-      row.style.display = row.style.display === 'none' ? 'flex' : 'none';
-      if (row.style.display === 'flex') {
+      const isOpen = row.style.display !== 'none';
+      row.style.display = isOpen ? 'none' : 'flex';
+      if (!isOpen) {
+        // Populate YTD
         document.getElementById('fpi-input').value = live.fpiYTD;
+        // Populate 5 daily fields from live state
+        for (let i = 0; i < 5; i++) {
+          const el = document.getElementById('fpi-day-' + i);
+          if (el) el.value = live.fpiDailyValues[i] ?? '';
+        }
+        document.getElementById('fpi-input-error').style.display = 'none';
+        fpiDailyChanged();
         document.getElementById('fpi-input').focus();
       }
     }
 
-    function applyFpiOverride() {
-      const ytdVal = parseFloat(document.getElementById('fpi-input').value);
-      const weeklyVal = parseFloat(document.getElementById('fpi-weekly-input').value);
-      if (!isNaN(ytdVal)) live.fpiYTD = ytdVal;
-      if (!isNaN(weeklyVal)) live.fpiWeekly = weeklyVal;
-      // SIGNAL: weekly outflow < −₹5,000 Cr (matches strategy_recommendations.txt spec)
-      // If weekly input not provided, fall back to YTD heuristic (YTD < -50,000 Cr)
-      if (!isNaN(weeklyVal)) {
-        live.fpiActive = weeklyVal < -5000;
-      } else if (!isNaN(ytdVal)) {
-        live.fpiActive = ytdVal < -50000;
-      }
+    function resetFpiToBaseline() {
+      live.fpiYTD = BASELINE_FPI.ytd;
+      live.fpiDailyValues = [...BASELINE_FPI.daily];
+      live.fpiWeekly = BASELINE_FPI.weekly;
+      live.fpiActive = BASELINE_FPI.weekly < -5000;
+      live.fpiOverridden = false;
       document.getElementById('fpi-edit-row').style.display = 'none';
-      updateTiles();
-      updateSignals();
-      updateVerdict();
-      saveToStorage();
+      document.getElementById('fpi-custom-badge').style.display = 'none';
+      // Show the prompt banner again so user knows they're back on baseline
+      const pb = document.getElementById('fpiPromptBanner');
+      if (pb) pb.style.display = 'flex';
+      sessionStorage.removeItem('nifty_fpi_session');
+      sessionStorage.removeItem('nifty_fpi_dismissed');
+      saveFpiToSession();
+      updateTiles(); updateSignals(); updateVerdict();
+    }
+
+    function scrollToFpiAndOpen() {
+      // Keep the banner visible — it stays until the user either clicks
+      // "Dismiss" or successfully submits values via the Set button.
+      const tile = document.getElementById('tile-fpi');
+      if (tile) tile.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => {
+        const row = document.getElementById('fpi-edit-row');
+        if (row) row.style.display = 'flex';
+        const inp = document.getElementById('fpi-input');
+        if (inp) { inp.value = live.fpiYTD; inp.focus(); }
+        for (let i = 0; i < 5; i++) {
+          const el = document.getElementById('fpi-day-' + i);
+          if (el) el.value = live.fpiDailyValues[i] ?? '';
+        }
+        fpiDailyChanged();
+      }, 400);
+    }
+
+    function dismissFpiPrompt() {
+      const pb = document.getElementById('fpiPromptBanner');
+      if (pb) pb.style.display = 'none';
+      try { sessionStorage.setItem('nifty_fpi_dismissed', '1'); } catch { }
+    }
+
+    function applyFpiOverride() {
+      const errEl = document.getElementById('fpi-input-error');
+      errEl.style.display = 'none';
+
+      const ytdRaw = parseFloat(document.getElementById('fpi-input').value);
+      // Read 5 daily values
+      const dayVals = [];
+      for (let i = 0; i < 5; i++) {
+        const v = parseFloat(document.getElementById('fpi-day-' + i)?.value);
+        dayVals.push(isNaN(v) ? live.fpiDailyValues[i] : v);
+      }
+      const weeklySum = dayVals.reduce((s, v) => s + (isNaN(v) ? 0 : v), 0);
+
+      // ── Validation ──────────────────────────────────────────
+      const errors = [];
+      if (!isNaN(ytdRaw)) {
+        if (ytdRaw < FPI_CLAMP.ytdMin || ytdRaw > FPI_CLAMP.ytdMax)
+          errors.push(`YTD must be between ₹${FPI_CLAMP.ytdMin / 1000}K Cr and +₹${FPI_CLAMP.ytdMax / 1000}K Cr`);
+      }
+      for (let i = 0; i < 5; i++) {
+        if (!isNaN(dayVals[i]) && (dayVals[i] < FPI_CLAMP.dayMin || dayVals[i] > FPI_CLAMP.dayMax)) {
+          const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+          errors.push(`${days[i]} value out of plausible range (±${FPI_CLAMP.dayMax / 1000}K Cr)`);
+        }
+      }
+      if (errors.length) {
+        errEl.textContent = '⚠ ' + errors.join(' · ');
+        errEl.style.display = 'block';
+        return;
+      }
+
+      // ── Apply valid values ───────────────────────────────────
+      if (!isNaN(ytdRaw)) live.fpiYTD = ytdRaw;
+      live.fpiDailyValues = dayVals;
+      live.fpiWeekly = weeklySum;
+      live.fpiActive = weeklySum < -5000;
+      live.fpiOverridden = true;
+
+      // Show CUSTOM badge and Reset link
+      const badge = document.getElementById('fpi-custom-badge');
+      badge.style.display = 'inline';
+      badge.title = `Custom · YTD: ₹${(live.fpiYTD / 100000).toFixed(2)}L Cr · Wk: ${weeklySum >= 0 ? '+' : ''}${weeklySum.toFixed(2)} Cr`;
+
+      document.getElementById('fpi-edit-row').style.display = 'none';
+      // Hide the prompt banner — user has entered their data
+      dismissFpiPrompt();
+      saveFpiToSession();   // ← session-only, never localStorage
+      updateTiles(); updateSignals(); updateVerdict();
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -2684,21 +2919,24 @@
         document.getElementById('dma-level-label').textContent = Math.round(dma_used).toLocaleString('en-IN');
       }
 
-      // ── FPI — weekly flow drives signal
+      // ── FPI — weekly flow (sum of 5 days) drives signal
       {
         const inCr = fpiYTD;
         const wkCr = live.fpiWeekly;
         const absLakh = Math.abs(inCr / 100000);
-        const display = (inCr < 0 ? '−₹' : '+₹') + absLakh.toFixed(1) + 'L Cr';
+        const display = (inCr < 0 ? '−₹' : '+₹') + absLakh.toFixed(2) + 'L Cr';
         const fpiTile = document.getElementById('tile-fpi');
         fpiTile.className = 'tile ' + (fpiActive ? 'red' : 'green');
         document.getElementById('val-fpi').textContent = display;
         const stFpi = document.getElementById('st-fpi');
-        const wkLabel = wkCr < -5000 ? `Wk: −₹${Math.abs(wkCr / 100).toFixed(0)}Cr ⚡` : `Wk: ${wkCr >= 0 ? '+' : '-'}₹${Math.abs(wkCr / 100).toFixed(0)}Cr`;
+        const wkLabel = wkCr < -5000
+          ? `Wk: −₹${Math.abs(wkCr).toLocaleString('en-IN', { maximumFractionDigits: 0 })} Cr ⚡`
+          : `Wk: ${wkCr >= 0 ? '+' : '−'}₹${Math.abs(wkCr).toLocaleString('en-IN', { maximumFractionDigits: 0 })} Cr`;
         stFpi.textContent = fpiActive ? 'SELLER' : 'BUYER';
         stFpi.style.cssText = fpiActive ? 'background:#FEE2E2; color:#DC2626' : 'background:#ECFDF5; color:#059669';
         const noteEl = document.querySelector('.fpi-note');
-        if (noteEl) noteEl.textContent = `YTD (NSDL) · ${wkLabel} · click ✎`;
+        const sourceLabel = live.fpiOverridden ? '⚠ CUSTOM (session)' : 'NSDL seeded';
+        if (noteEl) noteEl.textContent = `${sourceLabel} · ${wkLabel} · click ✎`;
       }
     }
 
@@ -2729,12 +2967,13 @@
         setSignal('dma', trig ? 'triggered' : 'clear', dmaGap.toFixed(1) + '%', trig ? '✓' : '✗');
       }
 
-      // FPI — FIX #4: signal driven by weekly flow (< −₹5,000 Cr threshold)
+      // FPI — signal driven by weekly sum of 5 daily flows (< −₹5,000 Cr threshold)
       {
         const wk = live.fpiWeekly;
         const state = fpiActive ? 'triggered' : 'clear';
-        const absW = Math.abs(wk);
-        const label = (wk < 0 ? '−₹' : '+₹') + absW.toLocaleString('en-IN') + ' Cr/wk';
+        const label = (wk < 0 ? '−₹' : '+₹') +
+          Math.abs(wk).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) +
+          ' Cr/wk (5d)';
         setSignal('fpi', state, label, fpiActive ? '✓' : '✗');
       }
 
@@ -2980,17 +3219,38 @@
     const LS_KEY = 'nifty_hedge_live_v3';
     function saveToStorage() {
       try {
+        // ⚠ FPI values are intentionally NEVER saved to localStorage.
+        // They are session-only (sessionStorage) and always reset to
+        // BASELINE_FPI on a fresh page load — prevents stale/false overrides persisting.
         localStorage.setItem(LS_KEY, JSON.stringify({
           ts: Date.now(), vix: live.vix, nifty: live.nifty, usdinr: live.usdinr,
           goldUSD: live.goldUSD, brent: live.brent, dma_used: live.dma_used,
-          fpiYTD: live.fpiYTD,
-          fpiWeekly: live.fpiWeekly,  // FIX #4: persist weekly flow for signal
         }));
       } catch { }
+    }
+    function saveFpiToSession() {
+      // FPI overrides live only for this browser tab/session — cleared on close.
+      try {
+        sessionStorage.setItem('nifty_fpi_session', JSON.stringify({
+          fpiYTD: live.fpiYTD,
+          fpiDailyValues: live.fpiDailyValues,
+          fpiWeekly: live.fpiWeekly,
+          overridden: live.fpiOverridden,
+          ts: Date.now()
+        }));
+      } catch { }
+    }
+    function loadFpiFromSession() {
+      try {
+        const s = JSON.parse(sessionStorage.getItem('nifty_fpi_session'));
+        // Session data expires after 8 hours (one trading day)
+        return (s && Date.now() - s.ts <= 8 * 60 * 60 * 1000) ? s : null;
+      } catch { return null; }
     }
     function loadFromStorage() {
       try {
         const s = JSON.parse(localStorage.getItem(LS_KEY));
+        // localStorage stores market data only (max 24h stale tolerance)
         return (s && Date.now() - s.ts <= 24 * 60 * 60 * 1000) ? s : null;
       } catch { return null; }
     }
@@ -3000,25 +3260,56 @@
     // ═══════════════════════════════════════════════════════════
     const FALLBACK = {
       vix: 17.9, nifty: 24386, usdinr: 84.52, goldUSD: 3295, brent: 65.4,
-      dma_used: 23521, fpiYTD: -210000,
-      fpiWeekly: -6000,      // seed: active outflow week (drives signal; update via ✎)
+      dma_used: 23521,
       rolling_high_180d: 26277,  // seed: recent 6-month peak — gives max caution offline
+      // ⚠ fpiYTD and fpiWeekly are intentionally NOT here — they come
+      // exclusively from BASELINE_FPI and (optionally) the session store.
     };
     const stored = loadFromStorage();
+    // Apply market-data cache (no FPI) — BASELINE_FPI already set in live state above
     const initData = stored || FALLBACK;
     Object.assign(live, initData);
+
+    // ── Restore FPI from session (this tab only) if the user set a custom value ──
+    const sessionFpi = loadFpiFromSession();
+    if (sessionFpi && sessionFpi.overridden) {
+      live.fpiYTD = sessionFpi.fpiYTD;
+      if (Array.isArray(sessionFpi.fpiDailyValues) && sessionFpi.fpiDailyValues.length === 5) {
+        live.fpiDailyValues = sessionFpi.fpiDailyValues;
+      }
+      live.fpiWeekly = sessionFpi.fpiWeekly ?? live.fpiDailyValues.reduce((s, v) => s + v, 0);
+      live.fpiOverridden = true;
+      // Show CUSTOM badge immediately on page restore
+      const badge = document.getElementById('fpi-custom-badge');
+      if (badge) {
+        badge.style.display = 'inline';
+        badge.title = `Custom · YTD: ₹${(live.fpiYTD / 100000).toFixed(2)}L Cr · Wk: ${live.fpiWeekly >= 0 ? '+' : ''}${live.fpiWeekly.toFixed(2)} Cr`;
+      }
+    }
+
+    // ── Auto-hide the FPI prompt banner if already handled this session ──
+    // Hide if: user entered custom values OR explicitly dismissed the banner
+    try {
+      const alreadyDismissed = sessionStorage.getItem('nifty_fpi_dismissed') === '1';
+      if (live.fpiOverridden || alreadyDismissed) {
+        const pb = document.getElementById('fpiPromptBanner');
+        if (pb) pb.style.display = 'none';
+      }
+    } catch { }
+
+    // Guarantee FPI weekly & active are always derived from daily values (never stale localStorage)
+    if (!live.fpiDailyValues || live.fpiDailyValues.length !== 5) {
+      live.fpiDailyValues = [...BASELINE_FPI.daily];
+    }
+    live.fpiWeekly = live.fpiDailyValues.reduce((s, v) => s + (isNaN(v) ? 0 : v), 0);
+    live.fpiActive = live.fpiWeekly < -5000;
+
     // Recompute derived values from loaded state
     live.goldINR = (live.goldUSD * live.usdinr) / 31.1035;
     live.ytd = ((live.nifty / NIFTY_JAN1) - 1) * 100;
     live.dmaGap = ((live.nifty / live.dma_used) - 1) * 100;
     // Drawdown from 6-month rolling high — used as DD% input to the model
     live.dd_from_peak_pct = ((live.nifty / live.rolling_high_180d) - 1) * 100;
-    // FIX #4: weekly flow drives the signal (threshold -5000 Cr/week)
-    if (live.fpiWeekly != null) {
-      live.fpiActive = live.fpiWeekly < -5000;
-    } else {
-      live.fpiActive = live.fpiYTD < -50000;  // fallback when weekly not set
-    }
 
     renderScorecard();
     renderHeatmap();
