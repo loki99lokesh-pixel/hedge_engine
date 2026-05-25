@@ -71,29 +71,26 @@ REDIS_URL = os.environ.get('REDIS_URL')
 if REDIS_URL:
     db = redis.from_url(REDIS_URL, decode_responses=True)
 else:
-    # Failsafe for local testing on your laptop
-    db = None 
-    LOCAL_CACHE = {}
-    LOCAL_DMA = 23521.0
+    # Failsafe for local testing — simple in-memory dict mirrors Redis behaviour.
+    # Seeded with safe fallback values so local runs are meaningful without Redis.
+    db = None
+    LOCAL_CACHE = {
+        'dma'              : 23521.0,   # approximate 100-DMA seed
+        'rolling_high_180d': 26277.0,   # recent 6M peak — gives max caution locally
+    }
 
 def save_state(key, data):
     if db:
         db.set(key, json.dumps(data))
     else:
-        if key == 'dma': 
-            global LOCAL_DMA; LOCAL_DMA = data
-        else: 
-            global LOCAL_CACHE; LOCAL_CACHE[key] = data
+        LOCAL_CACHE[key] = data   # uniform — no special cases
 
 def get_state(key):
     if db:
         val = db.get(key)
         return json.loads(val) if val else None
     else:
-        if key == 'dma': 
-            return LOCAL_DMA
-        else: 
-            return LOCAL_CACHE.get(key)
+        return LOCAL_CACHE.get(key)  # returns None if key missing — callers handle this
 
 
 # ══════════════════════════════════════════════════════════════
@@ -145,22 +142,28 @@ def get_prev_close(symbol: str) -> float:
         raise ValueError(f'Not enough rows for prev close: {symbol}')
     return float(series.iloc[-2])
 
-def get_dma_only() -> float:
-    """Fetches 1 year of history specifically for the 100-DMA calculation."""
+def get_dma_only() -> tuple:
+    """Fetches 1 year of history for the 100-DMA and 180-day rolling high calculations."""
     df = yf.download('^NSEI', period='1y', interval='1d', progress=False, threads=False)
     if df.empty:
         raise ValueError('No yfinance history for ^NSEI')
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     close_col = 'Close' if 'Close' in df.columns else df.columns[-1]
-    
-    # Calculate DMA and update database
-    dma_100 = float(df[close_col].dropna().rolling(window=100).mean().iloc[-1])
+    series = df[close_col].dropna()
+
+    # 100-DMA — trend direction signal (used in checklist)
+    dma_100 = float(series.rolling(window=100).mean().iloc[-1])
     if pd.isna(dma_100):
-         raise ValueError('Calculated DMA is NaN')
-         
+        raise ValueError('Calculated DMA is NaN')
+
+    # 180-day rolling high — how deep are we in the current drawdown
+    # 180 calendar days ≈ 126 trading days; we use last 126 rows of daily data
+    rolling_high_180d = float(series.iloc[-126:].max())
+
     save_state('dma', dma_100)
-    return dma_100
+    save_state('rolling_high_180d', rolling_high_180d)
+    return dma_100, rolling_high_180d
 
 def fetch_live_data():
     data = {}
@@ -175,12 +178,13 @@ def fetch_live_data():
         data['nifty'] = attempt_yf('^NSEI', 'nifty')
         sources['nifty'] = 'yfinance_fallback'
 
-    # 2. NIFTY 100-DMA (yfinance background -> LKG Memory Fallback)
+    # 2. NIFTY 100-DMA + 180-day rolling high (yfinance background -> LKG Memory Fallback)
     try:
-        dynamic_dma = get_dma_only()
+        dynamic_dma, rolling_high_180d = get_dma_only()
     except Exception as e:
         print(f"DMA math failed, using LKG: {e}")
-        dynamic_dma = get_state('dma') or 23521.0
+        dynamic_dma      = get_state('dma') or 23521.0
+        rolling_high_180d = get_state('rolling_high_180d') or 26277.0
 
     # 3. INDIA VIX (Stooq Primary -> yfinance Fallback)
     try:
@@ -272,6 +276,8 @@ def fetch_live_data():
     data['ytd'] = round(((data['nifty'] / NIFTY_JAN1) - 1) * 100, 2)
     data['dmaGap'] = round(((data['nifty'] / dynamic_dma) - 1) * 100, 2)
     data['dma_used'] = round(dynamic_dma, 2)
+    data['rolling_high_180d'] = round(rolling_high_180d, 2)
+    data['dd_from_peak_pct'] = round(((data['nifty'] / rolling_high_180d) - 1) * 100, 2)
     
     from datetime import datetime, timezone
     data['timestamp'] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
@@ -288,6 +294,68 @@ def update_cache_loop():
             print(f"[Background Sync Error] {e}")
         time.sleep(300) # Re-fetch every 5 minutes
 
+def bootstrap_v3_state():
+    """
+    Replays 1 year of daily Nifty closes through the v3 engine logic
+    to seed peak_price, trough_price and days_in_dd correctly.
+
+    Only runs on first boot (peak_price == 0) so it never overwrites
+    a healthy running state. After bootstrap the normal 5-min loop
+    takes over and keeps state current.
+    """
+    state = load_v3_state()
+    if state.get('peak_price', 0) != 0:
+        print("[Bootstrap] State already initialised — skipping historical replay.")
+        return
+
+    print("[Bootstrap] Fresh state detected — replaying 1 year of Nifty history to seed peak/trough/days_in_dd...")
+    try:
+        df = yf.download('^NSEI', period='1y', interval='1d', progress=False, threads=False)
+        if df.empty:
+            raise ValueError("Empty data from yfinance")
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        close_col = 'Close' if 'Close' in df.columns else df.columns[-1]
+        series = df[close_col].dropna()
+
+        # Replay each day chronologically through the engine
+        # Use neutral/seeded inputs for vol/fpi — we only care about
+        # peak, trough and days_in_dd being correctly bootstrapped
+        replay_state = {
+            'peak_price'  : 0,
+            'trough_price': float('inf'),
+            'days_in_dd'  : 0,
+            'low_vol_days': 0,
+            'prev_hedge'  : 0,
+            'last_date'   : '',
+        }
+        for price in series:
+            _, _, _, replay_state = phe.calculate_v3_magnitude_hedge(
+                vix=18.0, rv20d=14.0, fpi_net=-1200,
+                gap_pct=0.0,          # neutral — not used for peak/trough logic
+                current_price=float(price),
+                state=replay_state,
+                ret_5d=0.0,
+                new_calendar_day=True
+            )
+
+        # Persist the bootstrapped state
+        replay_state['last_date'] = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        save_v3_state(replay_state)
+        print(f"[Bootstrap] Done. Peak: {replay_state['peak_price']:,.0f} | "
+              f"Trough: {replay_state['trough_price']:,.0f} | "
+              f"Days in DD: {replay_state['days_in_dd']}")
+
+    except Exception as e:
+        print(f"[Bootstrap] Failed — engine will self-correct over coming days: {e}")
+
+# Run bootstrap synchronously FIRST — blocks until complete so that
+# the first /api/v3_hedge call always sees a fully seeded state.
+# Only takes time on first boot or after a reset (peak_price == 0).
+# On normal restarts with healthy Redis state it returns in milliseconds.
+bootstrap_v3_state()
+
+# Background loop starts AFTER bootstrap is done
 threading.Thread(target=update_cache_loop, daemon=True).start()
 
 # ══════════════════════════════════════════════════════════════
@@ -519,13 +587,28 @@ def get_v3_magnitude_hedge():
     try:
         # 1. Pull all live inputs from the cached market data (populated by background thread)
         cached = get_state('live_market_data') or {}
-        nifty_close = cached.get('nifty', 24000)
-        gap_pct     = cached.get('dmaGap', 0)
-        vix         = cached.get('vix', 18.5)
+        nifty_close      = cached.get('nifty', 24000)
+        # Use dd_from_peak_pct (6M rolling high) as the drawdown signal — this correctly
+        # captures drawdowns that haven't yet crossed the 100-DMA (e.g. current ~7% fall).
+        # dmaGap is kept for the checklist signal only (trend direction).
+        dd_from_peak_pct = cached.get('dd_from_peak_pct', 0.0)  # negative when below peak
+        gap_pct          = cached.get('dmaGap', 0)               # kept for inputs_used log
+        vix              = cached.get('vix', 18.5)
 
-        # rv20d: use India VIX as the best available realised-vol proxy
-        # (actual 20-day realised vol is not fetched separately; VIX is highly correlated)
-        rv20d = vix
+        # rv20d: compute a proper annualised realised-vol proxy from the 5-day return.
+        # Directly aliasing rv20d = vix was the primary bug: the SEVERE check
+        # (dd >= 15% AND rv20d > 22) fired whenever VIX > 22, which is just
+        # moderate caution territory — far too sensitive.
+        # Formula: daily_move = |ret_5d| / sqrt(5), annualised = daily_move * sqrt(252).
+        # Floored at vix * 0.65 (RV is typically ~65-80% of IV) so it never
+        # collapses to zero on a quiet 5-day window.
+        try:
+            daily_move  = abs(ret_5d) / (5 ** 0.5)
+            rv20d_raw   = daily_move * (252 ** 0.5)
+            rv20d_floor = vix * 0.65
+            rv20d       = round(max(rv20d_floor, rv20d_raw), 2)
+        except Exception:
+            rv20d = vix * 0.65
 
         # 5-day return: derive from current price vs 5-day-ago close if available,
         # otherwise fall back to 0 (neutral — no Mixed Signal Filter bias)
@@ -550,15 +633,26 @@ def get_v3_magnitude_hedge():
         # 4. Load persisted state memory (peak/trough/days_in_dd/low_vol_days)
         state = load_v3_state()
 
+        # Fix: low_vol_days must count calendar days, not browser refreshes.
+        # We record the UTC date of the last engine call and only advance
+        # low_vol_days when a genuinely new calendar date is observed.
+        today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        last_date = state.get('last_date', '')
+        new_calendar_day = (today_str != last_date)
+
         # 5. Execute the v3.2 magnitude engine
+        # gap_pct passed is now dd_from_peak_pct (6M rolling high based) so the
+        # engine's gapN component correctly reflects the real current drawdown depth.
         nifty_hedge, active_stage, diag, new_state = phe.calculate_v3_magnitude_hedge(
-            vix, rv20d, fpi, gap_pct, nifty_close, state, ret_5d
+            vix, rv20d, fpi, dd_from_peak_pct, nifty_close, state, ret_5d,
+            new_calendar_day=new_calendar_day
         )
 
         # 6. Scale by portfolio beta (1.0 for dashboard = no scaling, pure Nifty target)
         adjusted_hedge = min(100.0, nifty_hedge * portfolio_beta)
 
-        # 7. Persist updated state for next call
+        # 7. Persist updated state for next call (include today's date)
+        new_state['last_date'] = today_str
         save_v3_state(new_state)
 
         return jsonify({
@@ -569,12 +663,13 @@ def get_v3_magnitude_hedge():
                 'active_stage':         active_stage,
                 'diagnostics':          diag,
                 'inputs_used': {
-                    'vix':         round(vix, 1),
-                    'rv20d':       round(rv20d, 1),
-                    'fpi_weekly':  fpi,
-                    'gap_pct':     round(gap_pct, 2),
-                    'ret_5d':      round(ret_5d, 2),
-                    'nifty_close': round(nifty_close, 0),
+                    'vix':              round(vix, 1),
+                    'rv20d':            round(rv20d, 1),
+                    'fpi_weekly':       fpi,
+                    'dd_from_peak_pct': round(dd_from_peak_pct, 2),  # used by engine
+                    'dma_gap_pct':      round(gap_pct, 2),            # checklist only
+                    'ret_5d':           round(ret_5d, 2),
+                    'nifty_close':      round(nifty_close, 0),
                 }
             }
         })
@@ -585,21 +680,29 @@ def get_v3_magnitude_hedge():
 
 @app.route('/api/v3_reset', methods=['POST'])
 def reset_v3_state(): 
-    #Clears the persisted v3.2 state file so the engine starts fresh.
-    #Call this whenever stale prev_hedge values are contaminating the output
-    #(e.g. after the old hardcoded-input era, or after a deployment change).
+    # Clears the persisted v3.2 state file so the engine starts fresh.
     try: 
         fresh_state = {
-            'peak_price' : 0, 
-            'trough_price': float('inf'), 
-            'days_in_dd' : 0, 
-            'low_vol_days': 0, 
-            'prev_hedge' : 0, 
+            'peak_price'   : 0, 
+            'trough_price' : float('inf'), 
+            'days_in_dd'   : 0, 
+            'low_vol_days' : 0, 
+            'prev_hedge'   : 0,
+            'last_date'    : '',   # also reset calendar-day tracker
         } 
         save_v3_state(fresh_state) 
         return jsonify({'status': 'success', 'message': 'v3 state reset to fresh defaults.'}) 
     except Exception as e: 
         return jsonify({'status': 'error', 'message': str(e)}), 500 
+
+@app.route('/api/v3_state', methods=['GET'])
+def get_v3_state_debug():
+    """Returns the current raw v3 state — useful for diagnosing Stage 3 persistence."""
+    try:
+        state = load_v3_state()
+        return jsonify({'status': 'success', 'state': state})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 if __name__ == '__main__':
