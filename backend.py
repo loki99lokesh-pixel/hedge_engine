@@ -31,6 +31,10 @@ _V3_STATE_DEFAULTS = {
     'low_vol_days': 0,
     'prev_hedge'  : 0,
     'last_date'   : '',
+    'ema_vix'     : 18.5, 
+    'sod_dd_pct'  : 0.0,
+    'sod_natural_target': 0.0,
+    'sod_buffer'  : 5.0
 }
 
 def load_v3_state():
@@ -364,11 +368,21 @@ def bootstrap_v3_state():
             'prev_hedge'  : 0,
             'last_date'   : '',
         }
+        # Compute a rolling peak so gap_pct (dd_from_peak_pct) is realistic
+        # per bar. Using gap_pct=0.0 suppressed onset_score throughout the
+        # replay, leaving prev_hedge underseeded — then the first live call
+        # wrote a higher prev_hedge, and an immediate refresh saw that higher
+        # prev_hedge vs a slightly different final_target and triggered the
+        # de-escalation gate (Stage 1 → Stage 3 bug on refresh).
+        replay_rolling_peak = 0.0
         for price in series:
+            price_f = float(price)
+            replay_rolling_peak = max(replay_rolling_peak, price_f)
+            replay_gap = ((price_f / replay_rolling_peak) - 1) * 100 if replay_rolling_peak > 0 else 0.0
             _, _, _, replay_state = phe.calculate_v3_magnitude_hedge(
                 vix=18.0, rv20d=14.0, fpi_net=-1200,
-                gap_pct=0.0,          # neutral — not used for peak/trough logic
-                current_price=float(price),
+                gap_pct=replay_gap,   # realistic dd_from_peak_pct per bar
+                current_price=price_f,
                 state=replay_state,
                 ret_5d=0.0,
                 new_calendar_day=True
@@ -670,6 +684,15 @@ def get_v3_magnitude_hedge():
         # 4. Load persisted state memory (peak/trough/days_in_dd/low_vol_days)
         state = load_v3_state()
 
+        # If peak_price is 0 (fresh state after reset or first boot), seed it
+        # from the live 6M rolling high so the engine's internal dd_pct aligns
+        # immediately with dd_from_peak_pct. Without this, the engine starts
+        # from today's price as the new peak, producing dd_pct=0 and showing
+        # 0% in the "DD from 6M Peak" tile right after a state reset.
+        if state.get('peak_price', 0) == 0:
+            rh = cached.get('rolling_high_180d', nifty_close)
+            state['peak_price'] = float(rh)
+
         # Fix: low_vol_days must count calendar days, not browser refreshes.
         # We record the UTC date of the last engine call and only advance
         # low_vol_days when a genuinely new calendar date is observed.
@@ -688,7 +711,10 @@ def get_v3_magnitude_hedge():
         # 6. Scale by portfolio beta (1.0 for dashboard = no scaling, pure Nifty target)
         adjusted_hedge = min(100.0, nifty_hedge * portfolio_beta)
 
-        # 7. Persist updated state for next call (include today's date)
+        # 7. Persist updated state for next call (include today's date).
+        # prev_hedge ratchet logic is now handled inside the engine itself —
+        # new_state['prev_hedge'] is already max(incoming, final_target).
+        # No override needed here.
         new_state['last_date'] = today_str
         save_v3_state(new_state)
 
@@ -725,12 +751,16 @@ def reset_v3_state():
             'days_in_dd'   : 0, 
             'low_vol_days' : 0, 
             'prev_hedge'   : 0,
-            'last_date'    : '',   # also reset calendar-day tracker
+            'last_date'    : '',
+            'ema_vix'      : 18.5, 
+            'sod_dd_pct'   : 0.0,
+            'sod_natural_target': 0.0,
+            'sod_buffer'   : 5.0
         } 
         save_v3_state(fresh_state) 
         return jsonify({'status': 'success', 'message': 'v3 state reset to fresh defaults.'}) 
     except Exception as e: 
-        return jsonify({'status': 'error', 'message': str(e)}), 500 
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/v3_state', methods=['GET'])
 def get_v3_state_debug():
