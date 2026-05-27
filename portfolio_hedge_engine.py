@@ -1100,24 +1100,22 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
                                   new_calendar_day=True):
     """
     Evaluates v3.2 logic. Requires previous state dictionary to manage 
-    the De-escalation Gate (Fix 7) and Drawdown penalties.
-    
-    new_calendar_day: True if this call is on a different UTC date from the
-    previous call. Controls whether low_vol_days advances. Prevents the gate
-    from clearing after N browser refreshes instead of N real calendar days.
+    the De-escalation Gate and Drawdown penalties.
     """
+    # --- NEW: 3-Minute EMA for VIX Smoothing ---
+    alpha = 0.5
+    prev_ema_vix = state.get('ema_vix', vix)
+    vix = (vix * alpha) + (prev_ema_vix * (1 - alpha))  # Overwrite with smoothed value
+
     # 1. Update Peak, Trough & Drawdown
     peak = max(state.get('peak_price', current_price), current_price)
+    # Note: Live engine uses absolute positive percentage for dd_pct
     dd_pct = abs((current_price - peak) / peak) * 100 if peak > 0 else 0
     trough = min(state.get('trough_price', current_price), current_price)
     
     if dd_pct == 0:
-        trough = current_price # Reset trough if we are at a new high
+        trough = current_price 
 
-    # days_in_dd must only advance once per real calendar day, not on every
-    # browser refresh. Incrementing on every API call inflated the time penalty,
-    # suppressed s2_target, and caused the de-escalation gate to fire after a
-    # single page refresh (Stage 1 → 'Stage 3: De-escalation Blocked').
     if dd_pct > 0:
         days_in_dd = state.get('days_in_dd', 0) + (1 if new_calendar_day else 0)
     else:
@@ -1129,7 +1127,6 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
     fpiN = norm_fpi(fpi_net)
     vixN = min(100.0, max(0.0, (vix - 10.0) / 30.0 * 100.0))
 
-    # Mixed Signal Filter (v3.1 Bug 2)
     msf_active = (rv20d > 18.0 and ret_5d > -3.0)
     fpi_weight = 0.15 * (0.8 if msf_active else 1.0)
 
@@ -1137,17 +1134,26 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
     s1_target = get_continuous_notional(onset_score)
 
     # 3. Stage 2: Active Phase Calculation
-    penalty = min(0.08 * days_in_dd, 15.0) # v3.1 FIX 6b: Capped at 15%
-    # v3.1 BUG 1 FIX: Intercept restored to 12.5
+    penalty = min(0.08 * days_in_dd, 15.0)
     s2_target = 12.5 + (0.52 * vix) + (0.48 * dd_pct) + (5.10 * (vix * dd_pct / 100.0)) - penalty
     s2_target = min(90.0, max(10.0, s2_target))
 
-    # 4. Transition Logic (v3.2 Transition Trapdoor fix)
+    # 4. Transition Logic
     final_target = max(s1_target, s2_target)
     if s1_target >= s2_target:
         active_stage = "Stage 1 — Onset"
     else:
         active_stage = "Stage 2 — Active Phase"
+
+    # --- NEW: Capture SOD (Start of Day) Snapshots for Gate Logic ---
+    if new_calendar_day or 'sod_natural_target' not in state:
+        sod_natural_target = final_target
+        sod_buffer = 5.0 + max(0.0, ((vix - 15.0) / 10.0) * 3.0)
+        sod_dd_pct = dd_pct
+    else:
+        sod_natural_target = state.get('sod_natural_target', final_target)
+        sod_buffer = state.get('sod_buffer', 5.0 + max(0.0, ((vix - 15.0) / 10.0) * 3.0))
+        sod_dd_pct = state.get('sod_dd_pct', dd_pct)
 
     # 5. Stage 3: Escalation Overrides (Hard Glass-Smash)
     # MAJOR: DD >= 20% regardless of vol — force minimum 75% hedge
@@ -1166,43 +1172,48 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
         active_stage = "Stage 3: Escalated (SEVERE unconditional)"
 
     # 6. Fix 7: De-escalation Gate (Memory Check)
-    # low_vol_days must count real calendar days, not API call count.
-    # Only advance when new_calendar_day=True (backend supplies this).
     low_vol_days = state.get('low_vol_days', 0)
     if new_calendar_day:
         if rv20d < 22 and vix < 20:
             low_vol_days += 1
         else:
-            low_vol_days = 0  # reset the streak if vol spikes on any day
+            low_vol_days = 0
 
-    # Calculate 50% recovery ratio
     recovery_ratio = 0
     if peak - trough > 0:
         recovery_ratio = (current_price - trough) / (peak - trough)
 
-    # Prevent dropping the hedge if the gate conditions are not fully met
-    prev_hedge = state.get('prev_hedge', 0)
+    incoming_prev_hedge = state.get('prev_hedge', 0)
 
-    # If we have returned to a new all-time high (dd_pct == 0), the drawdown
-    # is fully over — reset prev_hedge so the gate doesn't persist indefinitely.
     if dd_pct == 0:
-        prev_hedge = 0
+        incoming_prev_hedge = 0
+        low_vol_days = 0
+        days_in_dd = 0
 
-    # Gate tolerance: use a 1% band instead of strict >.  The sigmoid in
-    # get_continuous_notional() produces irrational floats.  A 0.1-point
-    # change in vix between two browser refreshes can produce a final_target
-    # that is microscopically smaller than prev_hedge (e.g. 39.3685 vs
-    # 39.3686), silently triggering the gate and flipping Stage 1 → Stage 3.
-    # A 1% dead-band is negligible operationally but eliminates all false fires.
-    if prev_hedge > final_target + 1.0 and "Stage 3" not in active_stage:
-        gate_cleared = (recovery_ratio > 0.50) and (low_vol_days >= 10)
-        if not gate_cleared:
-            final_target = prev_hedge # Block the drop, maintain previous hedge
-            active_stage = "Stage 3: De-escalation Blocked (Gate closed)"
-
-    # Round to 1 decimal before saving to prevent irrational sigmoid floats
-    # from accumulating precision drift across many refreshes.
     final_target = round(final_target, 1)
+
+    # --- NEW: Dynamic Gate Threshold ---
+    gate_threshold_check = sod_natural_target + sod_buffer
+
+    if incoming_prev_hedge > gate_threshold_check and "Stage 3" not in active_stage:
+        # Bypass gate entirely if SOD drawdown is trivial (< 2%)
+        if sod_dd_pct < 2.0:
+            pass  
+        else:
+            # Escape Route 1: Price Momentum (40% recovery)
+            cleared_by_price = (recovery_ratio >= 0.40)
+            
+            # Escape Route 2: Volatility Collapse (5 days quiet)
+            cleared_by_vol = (low_vol_days >= 5)
+            
+            # Gate clears if EITHER condition is met
+            gate_cleared = (cleared_by_price or cleared_by_vol) and (days_in_dd >= 3)
+            
+            if not gate_cleared:
+                final_target = incoming_prev_hedge  
+                active_stage = "Stage 3: De-escalation Blocked (Gate closed)"
+
+    new_prev_hedge = max(incoming_prev_hedge, final_target) if dd_pct > 0 else 0.0
 
     # 7. Compile Final State and Diagnostics
     new_state = {
@@ -1210,7 +1221,12 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
         'trough_price': trough,
         'days_in_dd': days_in_dd,
         'low_vol_days': low_vol_days,
-        'prev_hedge': final_target
+        'prev_hedge': new_prev_hedge,
+        # --- NEW STATE MEMORY ---
+        'ema_vix': vix,
+        'sod_dd_pct': sod_dd_pct,
+        'sod_natural_target': sod_natural_target,
+        'sod_buffer': sod_buffer
     }
 
     diagnostics = {
