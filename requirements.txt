@@ -1,9 +1,12 @@
-Flask
+flask
 flask-cors
-pandas
+gunicorn
 yfinance
+pandas
 requests
+redis
 openpyxl
 python-docx
-gunicorn
-redis
+
+# Optional but recommended for production deployment
+superset-frontend
