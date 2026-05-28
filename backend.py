@@ -34,7 +34,8 @@ _V3_STATE_DEFAULTS = {
     'ema_vix'     : 18.5, 
     'sod_dd_pct'  : 0.0,
     'sod_natural_target': 0.0,
-    'sod_buffer'  : 5.0
+    'sod_buffer'  : 5.0,
+    'sod_recovery_ratio': 0.0
 }
 
 def load_v3_state():
@@ -665,12 +666,16 @@ def get_v3_magnitude_hedge():
         except Exception:
             rv20d = vix * 0.65
 
-        # 2. FPI weekly outflow — read from query param sent by the dashboard
-        # Dashboard sends live.fpiWeekly (user-entered via the ✎ edit field)
-        try:
-            fpi = float(request.args.get('fpi', -1200))
-        except (TypeError, ValueError):
-            fpi = -1200
+        # 2. FPI weekly outflow
+        # Priority: admin-stored value (set via /api/admin/fpi) > query param > seed
+        admin_fpi_data = get_state('fpi_admin')
+        if admin_fpi_data and admin_fpi_data.get('weekly') is not None:
+            fpi = float(admin_fpi_data['weekly'])
+        else:
+            try:
+                fpi = float(request.args.get('fpi', -1200))
+            except (TypeError, ValueError):
+                fpi = -1200
 
         # 3. portfolio_beta — defaults to 1.0 for the main dashboard (pure Nifty exposure).
         # The portfolio hedge page passes the user's actual computed beta via ?beta=X
@@ -755,7 +760,8 @@ def reset_v3_state():
             'ema_vix'      : 18.5, 
             'sod_dd_pct'   : 0.0,
             'sod_natural_target': 0.0,
-            'sod_buffer'   : 5.0
+            'sod_buffer'   : 5.0,
+            'sod_recovery_ratio': 0.0
         } 
         save_v3_state(fresh_state) 
         return jsonify({'status': 'success', 'message': 'v3 state reset to fresh defaults.'}) 
@@ -779,3 +785,124 @@ if __name__ == '__main__':
     print("  Portfolio Tool:  http://127.0.0.1:5000/portfolio")
     print("=" * 60)
     app.run(debug=True, port=5000, use_reloader=False)
+
+# ══════════════════════════════════════════════════════════════
+# ADMIN AUTH + FPI MANAGEMENT
+# ══════════════════════════════════════════════════════════════
+# To generate your hash, run once in terminal:
+#   python3 -c "import hashlib; print(hashlib.sha256(b'YOUR_PIN_HERE').hexdigest())"
+# Then set the environment variable:
+#   Local  : export ADMIN_PIN_HASH=<that hex string>
+#   Render : Dashboard → Environment → add ADMIN_PIN_HASH=<hex string>
+# NEVER put the raw PIN in code or commit it to git.
+# ══════════════════════════════════════════════════════════════
+import hashlib
+import secrets as _secrets
+
+ADMIN_PIN_HASH = os.environ.get('ADMIN_PIN_HASH', '')
+
+# In-memory token store: { token_hex: issued_unix_ts }
+# Cleared on server restart — intentional (forces re-auth after deploys).
+_admin_tokens: dict = {}
+_admin_lock = threading.Lock()
+ADMIN_TOKEN_TTL = 12 * 3600  # 12 hours
+
+
+def _purge_expired():
+    now = time.time()
+    with _admin_lock:
+        dead = [t for t, ts in _admin_tokens.items() if now - ts > ADMIN_TOKEN_TTL]
+        for t in dead:
+            del _admin_tokens[t]
+
+
+def _is_valid_token(token: str) -> bool:
+    if not token:
+        return False
+    _purge_expired()
+    with _admin_lock:
+        ts = _admin_tokens.get(token)
+    return ts is not None and (time.time() - ts) < ADMIN_TOKEN_TTL
+
+
+@app.route('/api/admin/auth', methods=['POST'])
+def admin_auth():
+    """Verify admin PIN → return session token."""
+    if not ADMIN_PIN_HASH:
+        return jsonify({'status': 'error',
+                        'message': 'Admin not configured on this server.'}), 503
+    try:
+        body = request.get_json(silent=True) or {}
+        pin_bytes = str(body.get('pin', '')).encode('utf-8')
+        submitted = hashlib.sha256(pin_bytes).hexdigest()
+        # Use constant-time compare to prevent timing attacks
+        if not _secrets.compare_digest(submitted, ADMIN_PIN_HASH):
+            return jsonify({'status': 'error', 'message': 'Invalid PIN.'}), 401
+        token = _secrets.token_hex(32)
+        with _admin_lock:
+            _admin_tokens[token] = time.time()
+        return jsonify({'status': 'success', 'token': token})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/logout', methods=['POST'])
+def admin_logout():
+    """Invalidate an admin session token."""
+    token = request.headers.get('X-Admin-Token', '')
+    with _admin_lock:
+        _admin_tokens.pop(token, None)
+    return jsonify({'status': 'success'})
+
+
+@app.route('/api/admin/fpi', methods=['POST'])
+def admin_set_fpi():
+    """Admin-only: persist the week's FPI reading to Redis/cache."""
+    token = request.headers.get('X-Admin-Token', '')
+    if not _is_valid_token(token):
+        return jsonify({'status': 'error', 'message': 'Unauthorised.'}), 401
+    try:
+        body = request.get_json(silent=True) or {}
+        weekly = body.get('weekly')
+        ytd    = body.get('ytd')
+        if weekly is None:
+            return jsonify({'status': 'error', 'message': 'weekly field required.'}), 400
+        weekly = float(weekly)
+        # Sanity check: plausible range for weekly FPI equity flow in ₹ Cr
+        if not (-100000 < weekly < 50000):
+            return jsonify({'status': 'error',
+                            'message': f'weekly={weekly} is outside plausible range (-100000 to 50000).'}), 400
+        payload = {
+            'weekly'    : round(weekly, 2),
+            'ytd'       : round(float(ytd), 2) if ytd is not None else None,
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        }
+        save_state('fpi_admin', payload)
+        return jsonify({'status': 'success', 'saved': payload})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/admin/fpi', methods=['GET'])
+def admin_get_fpi():
+    """Admin-only: read back the currently stored FPI override."""
+    token = request.headers.get('X-Admin-Token', '')
+    if not _is_valid_token(token):
+        return jsonify({'status': 'error', 'message': 'Unauthorised.'}), 401
+    data = get_state('fpi_admin')
+    return jsonify({'status': 'success', 'data': data})
+
+
+@app.route('/api/fpi_public', methods=['GET'])
+def fpi_public():
+    """Public (no auth): returns the admin-set FPI so the dashboard
+    can display the latest reading without exposing the edit UI."""
+    data = get_state('fpi_admin')
+    if not data:
+        return jsonify({'status': 'none'})
+    return jsonify({
+        'status'    : 'ok',
+        'weekly'    : data.get('weekly'),
+        'ytd'       : data.get('ytd'),
+        'updated_at': data.get('updated_at'),
+    })
