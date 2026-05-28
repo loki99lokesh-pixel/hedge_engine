@@ -1145,31 +1145,35 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
     else:
         active_stage = "Stage 2 — Active Phase"
 
-    # --- NEW: Capture SOD (Start of Day) Snapshots for Gate Logic ---
+    # --- BUG 2 FIX: Calculate live RR so we can snapshot it ---
+    recovery_ratio_live = 0.0
+    if peak - trough > 0:
+        recovery_ratio_live = (current_price - trough) / (peak - trough)
+
+    # --- Capture SOD Snapshots for Gate Logic ---
     if new_calendar_day or 'sod_natural_target' not in state:
         sod_natural_target = final_target
         sod_buffer = 5.0 + max(0.0, ((vix - 15.0) / 10.0) * 3.0)
         sod_dd_pct = dd_pct
+        sod_recovery_ratio = recovery_ratio_live  # BUG 2 FIX: Freeze RR at the open
     else:
         sod_natural_target = state.get('sod_natural_target', final_target)
         sod_buffer = state.get('sod_buffer', 5.0 + max(0.0, ((vix - 15.0) / 10.0) * 3.0))
         sod_dd_pct = state.get('sod_dd_pct', dd_pct)
+        sod_recovery_ratio = state.get('sod_recovery_ratio', recovery_ratio_live)
 
     # 5. Stage 3: Escalation Overrides (Hard Glass-Smash)
-    # MAJOR: DD >= 20% regardless of vol — force minimum 75% hedge
-    if dd_pct >= 20:
-        final_target = max(final_target, 75.0)
-        active_stage = "Stage 3: Escalated (MAJOR minimum)"
-    # SEVERE: DD >= 15% AND genuinely elevated realised vol (rv20d > 28) OR VIX crisis (> 28)
-    # Threshold raised from rv20d > 22 to rv20d > 28 to prevent false triggers when
-    # rv20d was aliased to vix (now fixed, but the threshold aligns with the VIX crisis bar)
-    if dd_pct >= 15 and (rv20d > 28 or vix > 28):
-        final_target = 100.0
-        active_stage = "Stage 3: Escalated (SEVERE)"
-    # UNCONDITIONAL SEVERE: DD >= 25% is a deep bear regardless of vol
-    if dd_pct >= 25:
-        final_target = 100.0
-        active_stage = "Stage 3: Escalated (SEVERE unconditional)"
+    # --- BUG 1 FIX: Wrap overrides in the 3-day shock window guard ---
+    if days_in_dd >= 3:
+        if dd_pct >= 20:
+            final_target = max(final_target, 75.0)
+            active_stage = "Stage 3: Escalated (MAJOR minimum)"
+        if dd_pct >= 15 and (rv20d > 28 or vix > 28):
+            final_target = 100.0
+            active_stage = "Stage 3: Escalated (SEVERE)"
+        if dd_pct >= 25:
+            final_target = 100.0
+            active_stage = "Stage 3: Escalated (SEVERE unconditional)"
 
     # 6. Fix 7: De-escalation Gate (Memory Check)
     low_vol_days = state.get('low_vol_days', 0)
@@ -1179,10 +1183,6 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
         else:
             low_vol_days = 0
 
-    recovery_ratio = 0
-    if peak - trough > 0:
-        recovery_ratio = (current_price - trough) / (peak - trough)
-
     incoming_prev_hedge = state.get('prev_hedge', 0)
 
     if dd_pct == 0:
@@ -1191,8 +1191,6 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
         days_in_dd = 0
 
     final_target = round(final_target, 1)
-
-    # --- NEW: Dynamic Gate Threshold ---
     gate_threshold_check = sod_natural_target + sod_buffer
 
     if incoming_prev_hedge > gate_threshold_check and "Stage 3" not in active_stage:
@@ -1200,10 +1198,10 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
         if sod_dd_pct < 2.0:
             pass  
         else:
-            # Escape Route 1: Price Momentum (40% recovery)
-            cleared_by_price = (recovery_ratio >= 0.40)
+            # Escape Route 1: Price Momentum (uses frozen SOD value to prevent mid-day wobble)
+            cleared_by_price = (sod_recovery_ratio >= 0.40)
             
-            # Escape Route 2: Volatility Collapse (5 days quiet)
+            # Escape Route 2: Volatility Collapse 
             cleared_by_vol = (low_vol_days >= 5)
             
             # Gate clears if EITHER condition is met
@@ -1222,11 +1220,11 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
         'days_in_dd': days_in_dd,
         'low_vol_days': low_vol_days,
         'prev_hedge': new_prev_hedge,
-        # --- NEW STATE MEMORY ---
         'ema_vix': vix,
         'sod_dd_pct': sod_dd_pct,
         'sod_natural_target': sod_natural_target,
-        'sod_buffer': sod_buffer
+        'sod_buffer': sod_buffer,
+        'sod_recovery_ratio': sod_recovery_ratio  # Added to state
     }
 
     diagnostics = {
