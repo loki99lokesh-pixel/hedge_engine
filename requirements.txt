@@ -7,6 +7,3 @@ requests
 redis
 openpyxl
 python-docx
-
-# Optional but recommended for production deployment
-superset-frontend
