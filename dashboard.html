@@ -1295,56 +1295,8 @@
 
     <div class="section-head">Live Market Signals</div>
 
-    <!-- ── FPI Update Prompt ── shown until user enters values this session -->
-    <div id="fpiPromptBanner" style="
-        display:flex; align-items:flex-start; gap:14px;
-        background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px;
-        padding:12px 16px; margin-bottom:16px; font-size:13px;">
-      <span style="font-size:18px; flex-shrink:0; margin-top:1px;">📋</span>
-      <div style="flex:1; min-width:0;">
-        <div style="font-weight:600; color:#92400E; margin-bottom:3px;">
-          FPI data requires manual entry — results use a seeded baseline until updated
-        </div>
-        <div style="color:#B45309; line-height:1.6; font-size:12px;">
-          FPI flows are not available via any free API. The engine uses a
-          <strong>hardcoded baseline</strong> (YTD: −₹2.22L Cr, seeded 25 May 2026).
-          For accurate signals, enter the last 5 trading days' equity values from NSDL —
-          <strong>Investments → Equity column only</strong> (not Debt, Hybrid, or Derivatives):
-          <br style="margin-bottom:4px;">
-          &nbsp;• Open
-          <a href="https://www.fpi.nsdl.co.in/web/Reports/Archive.aspx" target="_blank" rel="noopener"
-            style="color:#2563EB; font-weight:600; text-decoration:underline;">
-            NSDL Archive Report ↗
-          </a>
-          → <strong>set the date field to today's date</strong> → click Search
-          → note the Equity column values for each of the last 5 trading days (Mon–Fri)
-          <br>
-          &nbsp;• <strong>YTD equity (Jan 1 to date)</strong>: Grand Total row → Equity column
-          (calendar year, not financial year)
-        </div>
-        <div style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <button onclick="scrollToFpiAndOpen()" style="
-              font-family:var(--font-mono); font-size:11px; font-weight:600;
-              padding:5px 12px; border-radius:5px; cursor:pointer;
-              background:#2563EB; color:#fff; border:none;">
-            ✎ Enter FPI Now
-          </button>
-          <button onclick="dismissFpiPrompt()" style="
-              font-family:var(--font-mono); font-size:11px; font-weight:500;
-              padding:5px 10px; border-radius:5px; cursor:pointer;
-              background:transparent; color:#92400E; border:1px solid #FDE68A;">
-            Dismiss (use baseline)
-          </button>
-          <span style="font-family:var(--font-mono); font-size:10px; color:#B45309;">
-            · Update weekly · Equity column only · Calendar year (not financial year)
-          </span>
-        </div>
-      </div>
-      <button onclick="dismissFpiPrompt()" style="
-          background:transparent; border:none; cursor:pointer;
-          color:#B45309; font-size:16px; flex-shrink:0; padding:0 2px;
-          line-height:1;" title="Dismiss">✕</button>
-    </div>
+
+    <!-- FPI prompt removed — admin sets FPI via hidden panel -->
 
     <div class="tiles">
 
@@ -1419,79 +1371,16 @@
 
       <div class="tile red" id="tile-fpi">
         <div class="tile-label">FPI Flows
-          <span style="font-size:9px; font-family:var(--font-mono); color:var(--muted); cursor:pointer;"
-            onclick="toggleFpiEdit()" title="Click to update">✎</span>
-          <span id="fpi-custom-badge" style="display:none; font-size:9px; font-family:var(--font-mono);
-            background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; border-radius:3px;
-            padding:1px 5px; margin-left:4px; cursor:pointer;" onclick="resetFpiToBaseline()"
-            title="Custom value active — click to reset to baseline">CUSTOM ↺</span>
+          <span id="fpi-live-badge" style="display:none; font-size:9px; font-family:var(--font-mono);
+            background:#D1FAE5; color:#065F46; border:1px solid #6EE7B7; border-radius:3px;
+            padding:1px 5px; margin-left:4px;">LIVE</span>
         </div>
         <div class="tile-value" id="val-fpi">−₹2.1L Cr</div>
         <div class="tile-status" id="st-fpi" style="background:#FEE2E2; color:#DC2626">SELLER</div>
-        <div class="fpi-note">NSDL seeded · Signal = 5-day sum · click ✎</div>
-        <div class="fpi-input-row" id="fpi-edit-row" style="display:none;">
-          <div style="display:flex;flex-direction:column;gap:5px;width:100%;">
-            <!-- YTD field -->
-            <div style="display:flex;align-items:center;gap:4px;">
-              <span
-                style="font-family:var(--font-mono);font-size:9px;color:var(--muted);width:36px;flex-shrink:0;">YTD:</span>
-              <input class="fpi-input" id="fpi-input" type="number" placeholder="-222343" step="1000" style="flex:1;"
-                title="Calendar YTD FPI equity flow in ₹ Cr (Jan 1 to date) — NSDL Archive → Grand Total row → Equity column. Calendar year only, not financial year.">
-            </div>
-            <!-- Separator -->
-            <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);padding:2px 0 1px;">
-              Last 5 trading days — Equity col (₹ Cr):
-            </div>
-            <!-- 5 daily fields -->
-            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:3px;">
-              <div style="display:flex;flex-direction:column;gap:2px;align-items:center;">
-                <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);">Mon</span>
-                <input class="fpi-input fpi-day-input" id="fpi-day-0" data-day="0" type="number" step="0.01"
-                  placeholder="0" style="width:100%;text-align:center;padding:4px 2px;font-size:10px;"
-                  title="Monday FPI equity flow (₹ Cr)" oninput="fpiDailyChanged()">
-              </div>
-              <div style="display:flex;flex-direction:column;gap:2px;align-items:center;">
-                <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);">Tue</span>
-                <input class="fpi-input fpi-day-input" id="fpi-day-1" data-day="1" type="number" step="0.01"
-                  placeholder="0" style="width:100%;text-align:center;padding:4px 2px;font-size:10px;"
-                  title="Tuesday FPI equity flow (₹ Cr)" oninput="fpiDailyChanged()">
-              </div>
-              <div style="display:flex;flex-direction:column;gap:2px;align-items:center;">
-                <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);">Wed</span>
-                <input class="fpi-input fpi-day-input" id="fpi-day-2" data-day="2" type="number" step="0.01"
-                  placeholder="0" style="width:100%;text-align:center;padding:4px 2px;font-size:10px;"
-                  title="Wednesday FPI equity flow (₹ Cr)" oninput="fpiDailyChanged()">
-              </div>
-              <div style="display:flex;flex-direction:column;gap:2px;align-items:center;">
-                <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);">Thu</span>
-                <input class="fpi-input fpi-day-input" id="fpi-day-3" data-day="3" type="number" step="0.01"
-                  placeholder="0" style="width:100%;text-align:center;padding:4px 2px;font-size:10px;"
-                  title="Thursday FPI equity flow (₹ Cr)" oninput="fpiDailyChanged()">
-              </div>
-              <div style="display:flex;flex-direction:column;gap:2px;align-items:center;">
-                <span style="font-family:var(--font-mono);font-size:8px;color:var(--muted);">Fri</span>
-                <input class="fpi-input fpi-day-input" id="fpi-day-4" data-day="4" type="number" step="0.01"
-                  placeholder="0" style="width:100%;text-align:center;padding:4px 2px;font-size:10px;"
-                  title="Friday FPI equity flow (₹ Cr)" oninput="fpiDailyChanged()">
-              </div>
-            </div>
-            <!-- Live weekly sum preview -->
-            <div id="fpi-weekly-sum" style="font-family:var(--font-mono);font-size:10px;
-              background:var(--bg3);border-radius:4px;padding:4px 6px;text-align:center;
-              border:1px solid var(--border);">
-              Week total: <strong id="fpi-sum-val">—</strong>
-              <span id="fpi-sum-signal" style="margin-left:4px;font-size:9px;"></span>
-            </div>
-            <div id="fpi-input-error" style="display:none; font-size:9px; font-family:var(--font-mono);
-              color:#DC2626; line-height:1.4; padding:2px 0;"></div>
-            <div style="display:flex;gap:4px;">
-              <button class="fpi-set-btn" onclick="applyFpiOverride()" style="flex:2;">Set</button>
-              <button class="fpi-set-btn" onclick="resetFpiToBaseline()"
-                style="flex:1; border-color:#F59E0B; color:#92400E; background:#FFFBEB;"
-                title="Reset to seeded baseline">↺ Reset</button>
-            </div>
-          </div>
-        </div>
+        <div class="fpi-note" id="fpi-note-text">NSDL seeded · admin updates weekly</div>
+        <div id="fpi-proximity" style="display:none; font-family:var(--font-mono); font-size:10px;
+          font-weight:600; margin-top:5px; padding:3px 7px; border-radius:4px; line-height:1.4;"></div>
+
       </div>
     </div>
 
@@ -1546,8 +1435,11 @@
           <div class="signal-item" id="sig-fpi">
             <div class="signal-check" id="sc-fpi">?</div>
             <div class="signal-text">
-              <div class="signal-name">FPI weekly outflow &lt; −₹5,000 Cr</div>
-              <div class="signal-detail">Signal = weekly Cr (not YTD) · Enter week via ✎ · NSDL.com</div>
+              <div class="signal-name">FPI weekly outflow &lt; −₹2,249 Cr</div>
+              <div class="signal-detail">P15: −₹2,249 Cr (signal) · P20: −₹1,371 Cr (watching) · Enter week via ✎ ·
+                NSDL.com</div>
+              <div id="fpi-direction-msg" style="display:none; font-size:10px; font-weight:600;
+                margin-top:3px; font-family:var(--font-mono);"></div>
             </div>
             <div class="signal-val" id="sv-fpi">—</div>
           </div>
@@ -2152,6 +2044,85 @@
       trading days to warm up.
     </div>
 
+
+    <!-- ═══ ADMIN PANEL (hidden — Shift+A×3 to open) ═══ -->
+    <div id="adminOverlay" style="display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.65); z-index:9000; align-items:center; justify-content:center;">
+      <div style="background:var(--bg2); border:1px solid var(--border2); border-radius:12px;
+      padding:28px 32px; width:360px; max-width:94vw;
+      box-shadow:0 24px 64px rgba(0,0,0,0.6); position:relative;">
+
+        <!-- PIN entry -->
+        <div id="adminLoginView">
+          <div style="font-family:var(--font-head); font-weight:700; font-size:16px; margin-bottom:4px;">
+            Admin Access</div>
+          <div style="font-family:var(--font-mono); font-size:10px; color:var(--muted); margin-bottom:20px;">
+            Enter PIN to unlock FPI controls</div>
+          <input id="adminPinInput" type="password" placeholder="PIN" autocomplete="off" style="width:100%; padding:10px 14px; border:1px solid var(--border2); border-radius:6px;
+            background:var(--bg3); color:var(--text); font-family:var(--font-mono); font-size:14px;
+            outline:none; margin-bottom:10px; letter-spacing:0.2em;"
+            onkeydown="if(event.key==='Enter') submitAdminPin()">
+          <div id="adminPinError" style="display:none; color:var(--red); font-size:11px;
+          font-family:var(--font-mono); margin-bottom:8px;"></div>
+          <div style="display:flex; gap:8px;">
+            <button onclick="submitAdminPin()" style="flex:1; padding:9px; background:var(--primary);
+            border:none; border-radius:6px; color:#fff; font-weight:600; cursor:pointer; font-size:13px;">
+              Unlock</button>
+            <button onclick="closeAdminModal()" style="padding:9px 14px; background:var(--bg3);
+            border:1px solid var(--border2); border-radius:6px; color:var(--muted);
+            cursor:pointer; font-size:13px;">Cancel</button>
+          </div>
+        </div>
+
+        <!-- FPI update (shown after auth) -->
+        <div id="adminFpiView" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div style="font-family:var(--font-head); font-weight:700; font-size:16px;">FPI Admin Panel</div>
+            <button onclick="adminLogout()" style="font-family:var(--font-mono); font-size:10px;
+            padding:4px 10px; background:var(--bg3); border:1px solid var(--border2);
+            border-radius:4px; color:var(--muted); cursor:pointer;">Logout</button>
+          </div>
+
+          <label style="font-family:var(--font-mono); font-size:10px; color:var(--muted);
+          text-transform:uppercase; letter-spacing:0.05em; display:block; margin-bottom:4px;">
+            Weekly Sum (₹ Cr) *</label>
+          <input id="adminWeeklyInput" type="number" step="0.01" placeholder="e.g. -2249" style="width:100%; padding:9px 12px; border:1px solid var(--border2); border-radius:6px;
+            background:var(--bg3); color:var(--text); font-family:var(--font-mono); font-size:13px;
+            outline:none; margin-bottom:12px;" onkeydown="if(event.key==='Enter') submitAdminFpi()">
+
+          <label style="font-family:var(--font-mono); font-size:10px; color:var(--muted);
+          text-transform:uppercase; letter-spacing:0.05em; display:block; margin-bottom:4px;">
+            YTD Equity (₹ Cr, optional)</label>
+          <input id="adminYtdInput" type="number" step="1" placeholder="e.g. -222343" style="width:100%; padding:9px 12px; border:1px solid var(--border2); border-radius:6px;
+            background:var(--bg3); color:var(--text); font-family:var(--font-mono); font-size:13px;
+            outline:none; margin-bottom:4px;">
+          <div style="font-size:10px; color:var(--muted); font-family:var(--font-mono); margin-bottom:16px;">
+            NSDL Archive → Grand Total row → Equity column</div>
+
+          <div id="adminFpiMsg" style="display:none; font-size:11px; font-family:var(--font-mono);
+          margin-bottom:10px; padding:6px 10px; border-radius:4px;"></div>
+
+          <div style="display:flex; gap:8px; margin-bottom:16px;">
+            <button onclick="submitAdminFpi()" style="flex:1; padding:9px; background:var(--primary);
+            border:none; border-radius:6px; color:#fff; font-weight:600; cursor:pointer; font-size:13px;">
+              Save FPI</button>
+            <button onclick="closeAdminModal()" style="padding:9px 14px; background:var(--bg3);
+            border:1px solid var(--border2); border-radius:6px; color:var(--muted);
+            cursor:pointer; font-size:13px;">Close</button>
+          </div>
+
+          <div style="border-top:1px solid var(--border); padding-top:14px;">
+            <div style="font-family:var(--font-mono); font-size:10px; color:var(--muted);
+            text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;">Danger Zone</div>
+            <button onclick="adminResetV3State()" style="width:100%; padding:8px;
+            background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3);
+            border-radius:6px; color:var(--red); font-family:var(--font-mono);
+            font-size:11px; font-weight:600; cursor:pointer;">↺ Reset v3.2 Engine State</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <footer class="footer">
@@ -2352,6 +2323,7 @@
       fpiWeekly: BASELINE_FPI.weekly,          // ₹ Cr current week sum — SIGNAL trigger (< -5000 = active)
       fpiActive: BASELINE_FPI.weekly < -5000,  // driven by fpiWeekly < -5000 (not YTD)
       fpiOverridden: false,                    // true when user has entered a custom value this session
+      prevFpiWeekly: null,                      // previous weekly sum — used for direction detection
       dataSource: 'seeded',
       dma_used: 23521,
       // Permanent market opening baselines locked at session start
@@ -2375,129 +2347,6 @@
     }
 
     // ── Called on any daily-input change to update the live sum preview ──
-    function fpiDailyChanged() {
-      const sum = fpiDailySum();
-      const sumEl = document.getElementById('fpi-sum-val');
-      const sigEl = document.getElementById('fpi-sum-signal');
-      if (sumEl) {
-        sumEl.textContent = (sum >= 0 ? '+' : '') + sum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Cr';
-        sumEl.style.color = sum < -5000 ? '#DC2626' : sum < 0 ? '#D97706' : '#059669';
-      }
-      if (sigEl) {
-        sigEl.textContent = sum < -5000 ? '⚡ SIGNAL ACTIVE' : sum < 0 ? '⚠ Below zero' : '✓ Net inflow';
-        sigEl.style.color = sum < -5000 ? '#DC2626' : sum < 0 ? '#D97706' : '#059669';
-      }
-    }
-
-    function toggleFpiEdit() {
-      const row = document.getElementById('fpi-edit-row');
-      const isOpen = row.style.display !== 'none';
-      row.style.display = isOpen ? 'none' : 'flex';
-      if (!isOpen) {
-        // Populate YTD
-        document.getElementById('fpi-input').value = live.fpiYTD;
-        // Populate 5 daily fields from live state
-        for (let i = 0; i < 5; i++) {
-          const el = document.getElementById('fpi-day-' + i);
-          if (el) el.value = live.fpiDailyValues[i] ?? '';
-        }
-        document.getElementById('fpi-input-error').style.display = 'none';
-        fpiDailyChanged();
-        document.getElementById('fpi-input').focus();
-      }
-    }
-
-    function resetFpiToBaseline() {
-      live.fpiYTD = BASELINE_FPI.ytd;
-      live.fpiDailyValues = [...BASELINE_FPI.daily];
-      live.fpiWeekly = BASELINE_FPI.weekly;
-      live.fpiActive = BASELINE_FPI.weekly < -5000;
-      live.fpiOverridden = false;
-      document.getElementById('fpi-edit-row').style.display = 'none';
-      document.getElementById('fpi-custom-badge').style.display = 'none';
-      // Show the prompt banner again so user knows they're back on baseline
-      const pb = document.getElementById('fpiPromptBanner');
-      if (pb) pb.style.display = 'flex';
-      sessionStorage.removeItem('nifty_fpi_session');
-      sessionStorage.removeItem('nifty_fpi_dismissed');
-      saveFpiToSession();
-      updateTiles(); updateSignals(); updateVerdict();
-    }
-
-    function scrollToFpiAndOpen() {
-      // Keep the banner visible — it stays until the user either clicks
-      // "Dismiss" or successfully submits values via the Set button.
-      const tile = document.getElementById('tile-fpi');
-      if (tile) tile.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setTimeout(() => {
-        const row = document.getElementById('fpi-edit-row');
-        if (row) row.style.display = 'flex';
-        const inp = document.getElementById('fpi-input');
-        if (inp) { inp.value = live.fpiYTD; inp.focus(); }
-        for (let i = 0; i < 5; i++) {
-          const el = document.getElementById('fpi-day-' + i);
-          if (el) el.value = live.fpiDailyValues[i] ?? '';
-        }
-        fpiDailyChanged();
-      }, 400);
-    }
-
-    function dismissFpiPrompt() {
-      const pb = document.getElementById('fpiPromptBanner');
-      if (pb) pb.style.display = 'none';
-      try { sessionStorage.setItem('nifty_fpi_dismissed', '1'); } catch { }
-    }
-
-    function applyFpiOverride() {
-      const errEl = document.getElementById('fpi-input-error');
-      errEl.style.display = 'none';
-
-      const ytdRaw = parseFloat(document.getElementById('fpi-input').value);
-      // Read 5 daily values
-      const dayVals = [];
-      for (let i = 0; i < 5; i++) {
-        const v = parseFloat(document.getElementById('fpi-day-' + i)?.value);
-        dayVals.push(isNaN(v) ? live.fpiDailyValues[i] : v);
-      }
-      const weeklySum = dayVals.reduce((s, v) => s + (isNaN(v) ? 0 : v), 0);
-
-      // ── Validation ──────────────────────────────────────────
-      const errors = [];
-      if (!isNaN(ytdRaw)) {
-        if (ytdRaw < FPI_CLAMP.ytdMin || ytdRaw > FPI_CLAMP.ytdMax)
-          errors.push(`YTD must be between ₹${FPI_CLAMP.ytdMin / 1000}K Cr and +₹${FPI_CLAMP.ytdMax / 1000}K Cr`);
-      }
-      for (let i = 0; i < 5; i++) {
-        if (!isNaN(dayVals[i]) && (dayVals[i] < FPI_CLAMP.dayMin || dayVals[i] > FPI_CLAMP.dayMax)) {
-          const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-          errors.push(`${days[i]} value out of plausible range (±${FPI_CLAMP.dayMax / 1000}K Cr)`);
-        }
-      }
-      if (errors.length) {
-        errEl.textContent = '⚠ ' + errors.join(' · ');
-        errEl.style.display = 'block';
-        return;
-      }
-
-      // ── Apply valid values ───────────────────────────────────
-      if (!isNaN(ytdRaw)) live.fpiYTD = ytdRaw;
-      live.fpiDailyValues = dayVals;
-      live.fpiWeekly = weeklySum;
-      live.fpiActive = weeklySum < -5000;
-      live.fpiOverridden = true;
-
-      // Show CUSTOM badge and Reset link
-      const badge = document.getElementById('fpi-custom-badge');
-      badge.style.display = 'inline';
-      badge.title = `Custom · YTD: ₹${(live.fpiYTD / 100000).toFixed(2)}L Cr · Wk: ${weeklySum >= 0 ? '+' : ''}${weeklySum.toFixed(2)} Cr`;
-
-      document.getElementById('fpi-edit-row').style.display = 'none';
-      // Hide the prompt banner — user has entered their data
-      dismissFpiPrompt();
-      saveFpiToSession();   // ← session-only, never localStorage
-      updateTiles(); updateSignals(); updateVerdict();
-    }
-
     // ═══════════════════════════════════════════════════════════
     // TOP PROGRESS BAR
     // ═══════════════════════════════════════════════════════════
@@ -2938,9 +2787,79 @@
         const sourceLabel = live.fpiOverridden ? '⚠ CUSTOM (session)' : 'NSDL seeded';
         if (noteEl) noteEl.textContent = `${sourceLabel} · ${wkLabel} · click ✎`;
       }
+      updateFpiProximity();
     }
 
     // ═══════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════
+    // FPI PROXIMITY & DIRECTION
+    // Thresholds (weekly ₹ Cr): P20=-1371, P15=-2249, P10=-3517
+    // Proximity bands (15% of gap to next threshold):
+    //   Approaching P20: current < -1000 (within ~370 Cr of P20)
+    //   Approaching P15: current < -1900 (within ~350 Cr of P15)
+    //   Approaching P10: current < -3000 (within ~520 Cr of P10)
+    // ═══════════════════════════════════════════════════════════
+    function updateFpiProximity() {
+      const wk = live.fpiWeekly;
+      const prv = live.prevFpiWeekly;   // null on first load
+      if (wk == null) return;
+
+      const P20 = -1371, P15 = -2249, P10 = -3517;
+      const NEAR_P20 = -1000, NEAR_P15 = -1900, NEAR_P10 = -3000;
+
+      // ── Direction ──
+      // positive diff = outflow worsening (more negative)
+      // negative diff = outflow easing (less negative)
+      const direction = (prv != null && prv !== wk) ? (wk < prv ? 'worsening' : 'easing') : null;
+
+      // ── Which zone is current? ──
+      // Zone 0: wk > P20       — below all thresholds (normal/low outflow)
+      // Zone 1: P20 ≤ wk > P15 — in watching zone
+      // Zone 2: P15 ≤ wk > P10 — signal active zone
+      // Zone 3: wk ≤ P10       — crisis zone
+      const zone = wk <= P10 ? 3 : wk <= P15 ? 2 : wk <= P20 ? 1 : 0;
+
+      // ── Proximity message ──
+      let proxMsg = null, proxColor = null, proxBg = null;
+
+      if (direction === 'worsening') {
+        if (zone === 0 && wk <= NEAR_P20) { proxMsg = '↑ Outflow building — approaching Early Warning (P20)'; proxColor = '#92400E'; proxBg = '#FEF3C7'; }
+        else if (zone === 1 && wk <= NEAR_P15) { proxMsg = '↑ Approaching Signal Active threshold (P15: −₹2,249 Cr)'; proxColor = '#C2410C'; proxBg = '#FEE2E2'; }
+        else if (zone === 2 && wk <= NEAR_P10) { proxMsg = '↑ Nearing Crisis level (P10: −₹3,517 Cr)'; proxColor = '#991B1B'; proxBg = '#FEE2E2'; }
+      } else if (direction === 'easing') {
+        if (zone === 2) { proxMsg = '↓ Outflow easing — still in Signal Active zone'; proxColor = '#92400E'; proxBg = '#FEF3C7'; }
+        else if (zone === 1) { proxMsg = '↓ Stress receding — still in Watching zone'; proxColor = '#78716C'; proxBg = '#F5F5F4'; }
+        else if (zone === 0) { proxMsg = '↓ Outflow normalising — below Early Warning level'; proxColor = '#065F46'; proxBg = '#D1FAE5'; }
+      }
+
+      // ── Tile proximity pill ──
+      const proxEl = document.getElementById('fpi-proximity');
+      if (proxEl) {
+        if (proxMsg) {
+          proxEl.textContent = proxMsg;
+          proxEl.style.color = proxColor;
+          proxEl.style.background = proxBg;
+          proxEl.style.border = '1px solid ' + proxColor + '33';
+          proxEl.style.display = 'block';
+        } else {
+          proxEl.style.display = 'none';
+        }
+      }
+
+      // ── Signal row direction message ──
+      const dirEl = document.getElementById('fpi-direction-msg');
+      if (dirEl) {
+        if (proxMsg) {
+          dirEl.textContent = proxMsg;
+          dirEl.style.color = proxColor;
+          dirEl.style.display = 'block';
+        } else {
+          dirEl.style.display = 'none';
+        }
+      }
+    }
+
     // SIGNALS (FIX #2: FPI signal is dynamic; FIX #6: FX = non-model)
     // ═══════════════════════════════════════════════════════════
     function setSignal(id, state, val, checkMark) {
@@ -2985,6 +2904,9 @@
           fxDev > 3 ? '⚠' : 'ℹ');
       }
 
+      // FPI proximity & direction
+      updateFpiProximity();
+
       // Brent — new signal
       if (brent != null) {
         const trig = brent > BRENT_STAGFLATION;
@@ -3011,8 +2933,18 @@
       const vix = live.vix ?? 17.9;
       const sig1 = vix > 20;
       const sig2 = live.dmaGap != null ? live.dmaGap < -2 : false;
-      const sig3 = live.fpiActive;
-      const sigCount = (sig1 ? 1 : 0) + (sig2 ? 1 : 0) + (sig3 ? 1 : 0);
+
+      // FPI: fractional vote between 0 and 1 based on position between P20 and P10.
+      // P20 (-1371) → 0.33 (watching), P15 (-2249) → 0.67 (signal active), P10 (-3517) → 1.0 (full)
+      // Below P20: 0.0.  Above P10: capped at 1.0.
+      const wk = live.fpiWeekly ?? 0;
+      const fpiScore = wk >= -1371 ? 0.0
+        : wk <= -3517 ? 1.0
+          : (Math.abs(wk) - 1371) / (3517 - 1371);    // linear 0→1 across P20→P10
+      const sig3 = fpiScore;                          // 0.0–1.0 fractional vote
+      const sigCount = (sig1 ? 1 : 0) + (sig2 ? 1 : 0) + sig3;  // e.g. 1.67 triggers B
+      // Clean display label: whole numbers show clean ("2"), fractional FPI shows 1dp ("1.7")
+      const sigCountLabel = Number.isInteger(sigCount) ? sigCount.toString() : sigCount.toFixed(1);
 
       const banner = document.getElementById('verdictBanner');
 
@@ -3026,20 +2958,23 @@
       const pills = [
         sig1 ? { label: 'VIX > 20', cls: 'active' } : { label: 'VIX normal', cls: 'clear' },
         sig2 ? { label: 'Below 100-DMA', cls: 'active' } : { label: 'Above 100-DMA', cls: 'clear' },
-        sig3 ? { label: 'FPI: Seller', cls: 'active' } : { label: 'FPI: Buyer', cls: 'clear' },
+        sig3 >= 1.0 ? { label: 'FPI: Crisis (P10)', cls: 'active' }
+          : sig3 >= 0.67 ? { label: 'FPI: Signal Active (P15)', cls: 'active' }
+            : sig3 >= 0.33 ? { label: 'FPI: Watching (P20)', cls: 'watching' }
+              : { label: 'FPI: Normal', cls: 'clear' },
         live.brent != null && live.brent > 95 ? { label: 'Brent stagflation', cls: 'watching' } : null,
       ].filter(Boolean);
 
       document.getElementById('verdictSignals').innerHTML = pills.map(p =>
         `<span class="vsig-pill ${p.cls}">${p.label}</span>`).join('');
 
-      // Signal dots
-      const dots = [sig1, sig2, sig3];
+      // Signal dots — FPI dot uses fractional colour
+      const fpiDotClass = sig3 >= 1.0 ? 'active-red' : sig3 >= 0.33 ? 'active-amber' : '';
       document.getElementById('signalDotRow').innerHTML =
-        `<span class="signal-count-label">Signals active: ${sigCount}/3</span>` +
-        dots.map(active =>
-          `<div class="signal-dot ${active ? (sigCount >= 2 ? 'active-red' : 'active-amber') : ''}"></div>`
-        ).join('');
+        `<span class="signal-count-label">Signals: ${sigCountLabel}/3</span>` +
+        `<div class="signal-dot ${sig1 ? (sigCount >= 1.67 ? 'active-red' : 'active-amber') : ''}"></div>` +
+        `<div class="signal-dot ${sig2 ? (sigCount >= 1.67 ? 'active-red' : 'active-amber') : ''}"></div>` +
+        `<div class="signal-dot ${fpiDotClass}"></div>`;
 
       // THE FIX: Clean status texts without any hardcoded math percentages
       if (vix > 28) {
@@ -3053,12 +2988,12 @@
         document.getElementById('pb-status-C').textContent = '🔴 DEPLOYED';
         document.getElementById('pb-status-B').style.cssText = 'background:#FFFBEB; color:#D97706; margin:0 16px 16px; padding:10px; border-radius:6px; font-weight:600; font-size:12px; text-align:center;';
         document.getElementById('pb-status-B').textContent = '⚠ ACTIVE';
-      } else if (sigCount >= 2) {
+      } else if (sigCount >= 1.67) {
         banner.className = 'verdict amber';
         document.getElementById('verdictIcon').textContent = '⚠';
-        document.getElementById('verdictTitle').textContent = `ELEVATED RISK — ${sigCount} of 3 Signals Active`;
+        document.getElementById('verdictTitle').textContent = `ELEVATED RISK — ${sigCountLabel} of 3 Signals Active`;
         document.getElementById('verdictBody').textContent =
-          `${sigCount} early-warning signals are active. Follow the Magnitude v3.2 Target below for your precise ATM Put Option allocation.`;
+          `${sigCountLabel} of 3 signals active (FPI contributing ${(sig3 * 100).toFixed(0)}%). Follow the Magnitude v3.2 Target below for your precise ATM Put allocation.`;
         document.getElementById('pb-B').className = 'pb-card active-amber';
         document.getElementById('pb-status-B').style.cssText = 'background:#FFFBEB; color:#D97706; margin:0 16px 16px; padding:10px; border-radius:6px; font-weight:600; font-size:12px; text-align:center;';
         document.getElementById('pb-status-B').textContent = '⚠ ACTIVE ALERT';
@@ -3069,7 +3004,7 @@
         document.getElementById('verdictIcon').textContent = '✅';
         document.getElementById('verdictTitle').textContent = 'NORMAL REGIME — Strategy A Only';
         document.getElementById('verdictBody').textContent =
-          `${sigCount} of 3 early-warning signals active. Market parameters within normal bounds. Maintain core 20% debt / 10% gold buffer with quarterly rebalancing.`;
+          `${sigCountLabel} of 3 signals active. Market parameters within normal bounds. Maintain core 20% debt / 10% gold buffer with quarterly rebalancing.`;
         document.getElementById('pb-status-B').style.cssText = 'background:var(--bg3); color:var(--muted); margin:0 16px 16px; padding:10px; border-radius:6px; font-weight:600; font-size:12px; text-align:center;';
         document.getElementById('pb-status-B').textContent = 'STANDBY';
         document.getElementById('pb-status-C').style.cssText = 'background:var(--bg3); color:var(--muted); margin:0 16px 16px; padding:10px; border-radius:6px; font-weight:600; font-size:12px; text-align:center;';
@@ -3277,32 +3212,11 @@
       if (Array.isArray(sessionFpi.fpiDailyValues) && sessionFpi.fpiDailyValues.length === 5) {
         live.fpiDailyValues = sessionFpi.fpiDailyValues;
       }
-      live.fpiWeekly = sessionFpi.fpiWeekly ?? live.fpiDailyValues.reduce((s, v) => s + v, 0);
-      live.fpiOverridden = true;
-      // Show CUSTOM badge immediately on page restore
-      const badge = document.getElementById('fpi-custom-badge');
-      if (badge) {
-        badge.style.display = 'inline';
-        badge.title = `Custom · YTD: ₹${(live.fpiYTD / 100000).toFixed(2)}L Cr · Wk: ${live.fpiWeekly >= 0 ? '+' : ''}${live.fpiWeekly.toFixed(2)} Cr`;
-      }
+      // (session FPI restore removed — admin sets FPI via /api/admin/fpi)
     }
 
-    // ── Auto-hide the FPI prompt banner if already handled this session ──
-    // Hide if: user entered custom values OR explicitly dismissed the banner
-    try {
-      const alreadyDismissed = sessionStorage.getItem('nifty_fpi_dismissed') === '1';
-      if (live.fpiOverridden || alreadyDismissed) {
-        const pb = document.getElementById('fpiPromptBanner');
-        if (pb) pb.style.display = 'none';
-      }
-    } catch { }
-
-    // Guarantee FPI weekly & active are always derived from daily values (never stale localStorage)
-    if (!live.fpiDailyValues || live.fpiDailyValues.length !== 5) {
-      live.fpiDailyValues = [...BASELINE_FPI.daily];
-    }
-    live.fpiWeekly = live.fpiDailyValues.reduce((s, v) => s + (isNaN(v) ? 0 : v), 0);
-    live.fpiActive = live.fpiWeekly < -5000;
+    // FPI baseline — will be overwritten by loadPublicFpi() on init
+    live.fpiActive = live.fpiWeekly < -2249;
 
     // Recompute derived values from loaded state
     live.goldINR = (live.goldUSD * live.usdinr) / 31.1035;
@@ -3319,9 +3233,217 @@
     updateVerdict();
     initChart();
 
-    // Kick off live fetch — loadV3Engine runs inside finalizeDataUpdate() which fetchAll() calls,
-    // so fpiWeekly is always populated before the v3 endpoint is hit.
-    fetchAll().then(() => { if (live.dataSource !== 'seeded') saveToStorage(); });
+
+
+    // ═══════════════════════════════════════════════════════════
+    // ADMIN SYSTEM
+    // Hidden entry: press Shift+A three times to open PIN modal.
+    // Session token stored in sessionStorage — clears on tab close.
+    // ═══════════════════════════════════════════════════════════
+    let _adminKeySeq = 0, _adminKeyTimer = null;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'A' && e.shiftKey) {
+        _adminKeySeq++;
+        clearTimeout(_adminKeyTimer);
+        _adminKeyTimer = setTimeout(() => { _adminKeySeq = 0; }, 1500);
+        if (_adminKeySeq >= 3) {
+          _adminKeySeq = 0;
+          openAdminModal();
+        }
+      }
+    });
+
+    function _getAdminToken() {
+      try { return sessionStorage.getItem('_adm_tok') || ''; } catch { return ''; }
+    }
+    function _setAdminToken(t) {
+      try { sessionStorage.setItem('_adm_tok', t); } catch { }
+    }
+    function _clearAdminToken() {
+      try { sessionStorage.removeItem('_adm_tok'); } catch { }
+    }
+
+    function openAdminModal() {
+      const overlay = document.getElementById('adminOverlay');
+      overlay.style.display = 'flex';
+      // If already authenticated this session, go straight to FPI view
+      if (_getAdminToken()) {
+        showAdminFpiView();
+        loadAdminCurrentFpi();
+      } else {
+        document.getElementById('adminLoginView').style.display = 'block';
+        document.getElementById('adminFpiView').style.display = 'none';
+        setTimeout(() => document.getElementById('adminPinInput').focus(), 50);
+      }
+    }
+
+    function closeAdminModal() {
+      document.getElementById('adminOverlay').style.display = 'none';
+      document.getElementById('adminPinInput').value = '';
+      document.getElementById('adminPinError').style.display = 'none';
+    }
+
+    // Close on overlay click (not on the card itself)
+    document.getElementById('adminOverlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('adminOverlay')) closeAdminModal();
+    });
+
+    async function submitAdminPin() {
+      const pin = document.getElementById('adminPinInput').value;
+      const errEl = document.getElementById('adminPinError');
+      errEl.style.display = 'none';
+      if (!pin) { errEl.textContent = 'Enter your PIN.'; errEl.style.display = 'block'; return; }
+      try {
+        const res = await fetch('/api/admin/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin })
+        });
+        const json = await res.json();
+        if (json.status === 'success') {
+          _setAdminToken(json.token);
+          document.getElementById('adminPinInput').value = '';
+          showAdminFpiView();
+          loadAdminCurrentFpi();
+        } else {
+          errEl.textContent = json.message || 'Invalid PIN.';
+          errEl.style.display = 'block';
+          document.getElementById('adminPinInput').value = '';
+        }
+      } catch (e) {
+        errEl.textContent = 'Server unreachable.';
+        errEl.style.display = 'block';
+      }
+    }
+
+    function showAdminFpiView() {
+      document.getElementById('adminLoginView').style.display = 'none';
+      document.getElementById('adminFpiView').style.display = 'block';
+    }
+
+    async function loadAdminCurrentFpi() {
+      try {
+        const res = await fetch('/api/admin/fpi', {
+          headers: { 'X-Admin-Token': _getAdminToken() }
+        });
+        const json = await res.json();
+        if (json.status === 'success' && json.data) {
+          const d = json.data;
+          document.getElementById('adminWeeklyInput').value = d.weekly ?? '';
+          document.getElementById('adminYtdInput').value = d.ytd ?? '';
+        }
+      } catch { }
+    }
+
+    async function submitAdminFpi() {
+      const msgEl = document.getElementById('adminFpiMsg');
+      const weekly = parseFloat(document.getElementById('adminWeeklyInput').value);
+      const ytdRaw = document.getElementById('adminYtdInput').value;
+      const ytd = ytdRaw !== '' ? parseFloat(ytdRaw) : null;
+
+      msgEl.style.display = 'none';
+      if (isNaN(weekly)) {
+        showAdminMsg('Weekly value is required.', 'error'); return;
+      }
+      try {
+        const res = await fetch('/api/admin/fpi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Token': _getAdminToken() },
+          body: JSON.stringify({ weekly, ytd })
+        });
+        const json = await res.json();
+        if (json.status === 'success') {
+          showAdminMsg('FPI saved. Refreshing dashboard…', 'success');
+          // Apply immediately to live state + re-run signals
+          live.fpiWeekly = weekly;
+          live.prevFpiWeekly = live.fpiWeekly;
+          if (ytd != null) live.fpiYTD = ytd;
+          live.fpiActive = weekly < -2249;
+          updateTiles(); updateSignals(); updateVerdict(); loadV3Engine();
+          // Show LIVE badge on tile
+          const badge = document.getElementById('fpi-live-badge');
+          if (badge) badge.style.display = 'inline';
+          const note = document.getElementById('fpi-note-text');
+          if (note) note.textContent = 'Admin · updated ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+          setTimeout(closeAdminModal, 1200);
+        } else if (json.status === 'error' && res.status === 401) {
+          _clearAdminToken();
+          showAdminMsg('Session expired. Please re-authenticate.', 'error');
+          setTimeout(() => {
+            document.getElementById('adminFpiView').style.display = 'none';
+            document.getElementById('adminLoginView').style.display = 'block';
+          }, 1000);
+        } else {
+          showAdminMsg(json.message || 'Save failed.', 'error');
+        }
+      } catch (e) {
+        showAdminMsg('Server unreachable.', 'error');
+      }
+    }
+
+    async function adminLogout() {
+      try {
+        await fetch('/api/admin/logout', {
+          method: 'POST',
+          headers: { 'X-Admin-Token': _getAdminToken() }
+        });
+      } catch { }
+      _clearAdminToken();
+      closeAdminModal();
+    }
+
+    async function adminResetV3State() {
+      if (!confirm('Reset v3.2 state memory? The engine will re-bootstrap from 1 year of history.')) return;
+      try {
+        const res = await fetch('/api/v3_reset', {
+          method: 'POST',
+          headers: { 'X-Admin-Token': _getAdminToken() }
+        });
+        const json = await res.json();
+        showAdminMsg(json.status === 'success' ? '✓ State reset. Refreshing engine…' : json.message, json.status);
+        if (json.status === 'success') setTimeout(() => { loadV3Engine(); }, 800);
+      } catch (e) {
+        showAdminMsg('Server unreachable.', 'error');
+      }
+    }
+
+    function showAdminMsg(text, type) {
+      const el = document.getElementById('adminFpiMsg');
+      el.textContent = text;
+      el.style.background = type === 'success' ? 'rgba(52,211,153,0.12)' : 'rgba(239,68,68,0.1)';
+      el.style.color = type === 'success' ? 'var(--green)' : 'var(--red)';
+      el.style.border = type === 'success' ? '1px solid rgba(52,211,153,0.2)' : '1px solid rgba(239,68,68,0.2)';
+      el.style.display = 'block';
+    }
+
+    // ── On load: fetch admin-set FPI from backend (public endpoint) ──
+    // This ensures the dashboard always displays the latest admin-entered reading
+    // even for public users who cannot see the edit UI.
+    async function loadPublicFpi() {
+      try {
+        const res = await fetch('/api/fpi_public');
+        const json = await res.json();
+        if (json.status === 'ok' && json.weekly != null) {
+          live.fpiWeekly = json.weekly;
+          live.fpiActive = json.weekly < -2249;
+          if (json.ytd != null) live.fpiYTD = json.ytd;
+          // Show LIVE badge
+          const badge = document.getElementById('fpi-live-badge');
+          if (badge) badge.style.display = 'inline';
+          const note = document.getElementById('fpi-note-text');
+          if (note) {
+            const ts = json.updated_at ? new Date(json.updated_at).toLocaleDateString('en-IN') : '';
+            note.textContent = 'Admin · ' + (ts || 'updated');
+          }
+        }
+      } catch { }
+    }
+
+    // 1. Load admin-set FPI first (public endpoint — no auth needed)
+    loadPublicFpi().then(() => {
+      // 2. Then kick off live market fetch
+      fetchAll().then(() => { if (live.dataSource !== 'seeded') saveToStorage(); });
+    });
     // Auto-refresh every 5 minutes
     setInterval(() => fetchAll().then(() => { if (live.dataSource !== 'seeded') saveToStorage(); }), 5 * 60 * 1000);
   </script>
