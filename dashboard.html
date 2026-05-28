@@ -1494,19 +1494,10 @@
             style="font-family: var(--font-mono); font-size: 42px; font-weight: 700; color: var(--text);">--%</div>
         </div>
 
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button id="v3-diag-btn" onclick="toggleV3Diagnostics()"
-            style="background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--r2); padding: 8px 14px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text); box-shadow: var(--shadow-sm); transition: background 0.2s;">
-            🔍 View Diagnostics
-          </button>
-          <button onclick="resetV3State()"
-            title="Clears stale state memory — use after deployment changes or hardcoded-input era"
-            style="background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--r2); padding: 8px 14px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); box-shadow: var(--shadow-sm); transition: all 0.2s;"
-            onmouseover="this.style.color='var(--red)';this.style.borderColor='rgba(239,68,68,0.4)'"
-            onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border2)'">
-            ↺ Reset State
-          </button>
-        </div>
+        <button id="v3-diag-btn" onclick="toggleV3Diagnostics()"
+          style="background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--r2); padding: 8px 14px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text); box-shadow: var(--shadow-sm); transition: background 0.2s;">
+          🔍 View Diagnostics
+        </button>
       </div>
 
       <div id="v3-diagnostics"
@@ -1546,22 +1537,6 @@
     </div>
 
     <script>
-      async function resetV3State() {
-        if (!confirm("Reset v3.2 state memory? This clears peak/trough/prev_hedge so the engine re-learns from today's market.")) return;
-        try {
-          const res = await fetch('/api/v3_reset', { method: 'POST' });
-          const json = await res.json();
-          if (json.status === 'success') {
-            alert('State reset. Refreshing engine...');
-            loadV3Engine();
-          } else {
-            alert('Reset failed: ' + json.message);
-          }
-        } catch (e) {
-          alert('Could not reach backend: ' + e.message);
-        }
-      }
-
       function toggleV3Diagnostics() {
         const el = document.getElementById('v3-diagnostics');
         const btn = document.getElementById('v3-diag-btn');
