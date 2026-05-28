@@ -18,7 +18,11 @@ app = Flask(__name__, static_folder='.', static_url_path='')
 
 try:
     from flask_cors import CORS
-    CORS(app)
+    # Lock CORS to your own Render domain + localhost for dev.
+    # Set ALLOWED_ORIGIN env var on Render to your actual URL.
+    # Falls back to localhost-only if not set (safe default).
+    _origin = os.environ.get('ALLOWED_ORIGIN', 'http://127.0.0.1:5000')
+    CORS(app, origins=[_origin, 'http://localhost:5000', 'http://127.0.0.1:5000'])
 except ImportError:
     pass
 
@@ -131,6 +135,34 @@ def get_state(key):
         return json.loads(val) if val else None
     else:
         return LOCAL_CACHE.get(key)  # returns None if key missing — callers handle this
+
+# ══════════════════════════════════════════════════════════════
+# RATE LIMITER — brute-force protection for /api/admin/auth
+# Tracks failed attempts per IP: max 5 per 15-minute window.
+# Uses in-memory store (resets on restart) — sufficient since
+# Redis is only available on Render, not locally.
+# ══════════════════════════════════════════════════════════════
+_rate_lock   = threading.Lock()
+_failed_attempts: dict = {}   # { ip: [timestamp, ...] }
+MAX_ATTEMPTS  = 5
+RATE_WINDOW   = 15 * 60   # 15 minutes in seconds
+
+def _is_rate_limited(ip: str) -> bool:
+    """Returns True if this IP has exceeded MAX_ATTEMPTS in the last RATE_WINDOW seconds."""
+    now = time.time()
+    with _rate_lock:
+        attempts = [t for t in _failed_attempts.get(ip, []) if now - t < RATE_WINDOW]
+        _failed_attempts[ip] = attempts
+        return len(attempts) >= MAX_ATTEMPTS
+
+def _record_failed_attempt(ip: str):
+    now = time.time()
+    with _rate_lock:
+        _failed_attempts.setdefault(ip, []).append(now)
+
+def _clear_failed_attempts(ip: str):
+    with _rate_lock:
+        _failed_attempts.pop(ip, None)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -325,14 +357,30 @@ def fetch_live_data():
 
     return data
 
+# Tracks last successful cache update — used by watchdog
+_last_cache_update = 0
+
 def update_cache_loop():
+    global _last_cache_update
     while True:
         try:
             payload = fetch_live_data()
             save_state('live_market_data', payload)
+            _last_cache_update = time.time()
+            print(f"[Cache] Updated at {datetime.now(timezone.utc).strftime('%H:%M:%S')} UTC")
         except Exception as e:
             print(f"[Background Sync Error] {e}")
-        time.sleep(300) # Re-fetch every 5 minutes
+        time.sleep(300)  # Re-fetch every 5 minutes
+
+def watchdog_loop():
+    """Monitors the cache thread. If no update in 20 minutes, spawns a new cache thread."""
+    time.sleep(600)   # Give initial bootstrap + first fetch time to complete
+    while True:
+        time.sleep(300)
+        age = time.time() - _last_cache_update
+        if age > 1200:  # 20 minutes without a successful update
+            print(f"[Watchdog] Cache stale ({age/60:.0f} min) — spawning new cache thread")
+            threading.Thread(target=update_cache_loop, daemon=True).start()
 
 def bootstrap_v3_state():
     """
@@ -399,14 +447,20 @@ def bootstrap_v3_state():
     except Exception as e:
         print(f"[Bootstrap] Failed — engine will self-correct over coming days: {e}")
 
-# Run bootstrap synchronously FIRST — blocks until complete so that
-# the first /api/v3_hedge call always sees a fully seeded state.
-# Only takes time on first boot or after a reset (peak_price == 0).
-# On normal restarts with healthy Redis state it returns in milliseconds.
-bootstrap_v3_state()
+def startup_sequence():
+    """
+    Runs bootstrap then starts the cache loop — all in one background thread.
+    This prevents Gunicorn workers from timing out on cold-start bootstrap.
+    The first /api/v3_hedge call within ~30s of boot uses seeded state,
+    which is safe — bootstrap completes before real traffic arrives on Render.
+    """
+    bootstrap_v3_state()
+    update_cache_loop()   # loops forever after bootstrap
 
-# Background loop starts AFTER bootstrap is done
-threading.Thread(target=update_cache_loop, daemon=True).start()
+# Start the full startup sequence in background
+threading.Thread(target=startup_sequence, daemon=True).start()
+# Start watchdog in its own thread
+threading.Thread(target=watchdog_loop, daemon=True).start()
 
 # ══════════════════════════════════════════════════════════════
 # HELPER: Build portfolio DataFrame from frontend payload
@@ -464,6 +518,24 @@ def build_portfolio_df(holdings):
 # ══════════════════════════════════════════════════════════════
 # WEB ROUTES
 # ══════════════════════════════════════════════════════════════
+@app.route('/health')
+def health():
+    """Health check — Render and uptime monitors ping this."""
+    cache_age = None
+    cached = get_state('live_market_data')
+    if cached and cached.get('timestamp'):
+        try:
+            fetched_at = datetime.fromisoformat(cached['timestamp'].replace('Z', '+00:00'))
+            cache_age  = round((datetime.now(timezone.utc) - fetched_at).total_seconds() / 60, 1)
+        except Exception:
+            pass
+    return jsonify({
+        'status'         : 'ok',
+        'cache_age_min'  : cache_age,
+        'cache_fresh'    : cache_age is not None and cache_age < 15,
+        'redis_connected': db is not None,
+    })
+
 @app.route('/')
 def index():
     return send_from_directory(app.static_folder, 'dashboard.html')
@@ -666,8 +738,7 @@ def get_v3_magnitude_hedge():
         except Exception:
             rv20d = vix * 0.65
 
-        # 2. FPI weekly outflow
-        # Priority: admin-stored value (set via /api/admin/fpi) > query param > seed
+        # 2. FPI — admin-stored value takes priority over query param
         admin_fpi_data = get_state('fpi_admin')
         if admin_fpi_data and admin_fpi_data.get('weekly') is not None:
             fpi = float(admin_fpi_data['weekly'])
@@ -747,8 +818,11 @@ def get_v3_magnitude_hedge():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/v3_reset', methods=['POST'])
-def reset_v3_state(): 
-    # Clears the persisted v3.2 state file so the engine starts fresh.
+def reset_v3_state():
+    """Clears v3.2 state — admin token required."""
+    token = request.headers.get('X-Admin-Token', '')
+    if ADMIN_PIN_HASH and not _is_valid_token(token):
+        return jsonify({'status': 'error', 'message': 'Unauthorised.'}), 401
     try: 
         fresh_state = {
             'peak_price'   : 0, 
@@ -770,7 +844,10 @@ def reset_v3_state():
 
 @app.route('/api/v3_state', methods=['GET'])
 def get_v3_state_debug():
-    """Returns the current raw v3 state — useful for diagnosing Stage 3 persistence."""
+    """Returns raw v3 state — admin token required."""
+    token = request.headers.get('X-Admin-Token', '')
+    if ADMIN_PIN_HASH and not _is_valid_token(token):
+        return jsonify({'status': 'error', 'message': 'Unauthorised.'}), 401
     try:
         state = load_v3_state()
         return jsonify({'status': 'success', 'state': state})
@@ -783,26 +860,34 @@ if __name__ == '__main__':
     print("  Starting Institutional Risk Engine Server")
     print("  Main Dashboard:  http://127.0.0.1:5000/")
     print("  Portfolio Tool:  http://127.0.0.1:5000/portfolio")
+    print("  Health Check:    http://127.0.0.1:5000/health")
     print("=" * 60)
+    if not ADMIN_PIN_HASH:
+        print()
+        print("  ⚠  ADMIN_PIN_HASH not set — admin panel will return 503.")
+        print("  To set it for this session, run in the same terminal BEFORE")
+        print("  starting the server:")
+        print()
+        print("  Windows (PowerShell):")
+        print("    $env:ADMIN_PIN_HASH = (python -c \"import hashlib; print(hashlib.sha256(b'YOUR_PIN').hexdigest())\")")
+        print("    python backend.py")
+        print()
+        print("  Mac/Linux:")
+        print("    export ADMIN_PIN_HASH=$(python3 -c \"import hashlib; print(hashlib.sha256(b'YOUR_PIN').hexdigest())\")")
+        print("    python3 backend.py")
+        print()
+        print("  On Render: set ADMIN_PIN_HASH in Environment tab.")
+        print("=" * 60)
     app.run(debug=True, port=5000, use_reloader=False)
 
 # ══════════════════════════════════════════════════════════════
 # ADMIN AUTH + FPI MANAGEMENT
-# ══════════════════════════════════════════════════════════════
-# To generate your hash, run once in terminal:
-#   python3 -c "import hashlib; print(hashlib.sha256(b'YOUR_PIN_HERE').hexdigest())"
-# Then set the environment variable:
-#   Local  : export ADMIN_PIN_HASH=<that hex string>
-#   Render : Dashboard → Environment → add ADMIN_PIN_HASH=<hex string>
-# NEVER put the raw PIN in code or commit it to git.
 # ══════════════════════════════════════════════════════════════
 import hashlib
 import secrets as _secrets
 
 ADMIN_PIN_HASH = os.environ.get('ADMIN_PIN_HASH', '')
 
-# In-memory token store: { token_hex: issued_unix_ts }
-# Cleared on server restart — intentional (forces re-auth after deploys).
 _admin_tokens: dict = {}
 _admin_lock = threading.Lock()
 ADMIN_TOKEN_TTL = 12 * 3600  # 12 hours
@@ -827,17 +912,25 @@ def _is_valid_token(token: str) -> bool:
 
 @app.route('/api/admin/auth', methods=['POST'])
 def admin_auth():
-    """Verify admin PIN → return session token."""
+    """Verify admin PIN with rate limiting → return session token."""
     if not ADMIN_PIN_HASH:
         return jsonify({'status': 'error',
                         'message': 'Admin not configured on this server.'}), 503
+    # Rate limit check
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
+    if _is_rate_limited(ip):
+        return jsonify({'status': 'error',
+                        'message': 'Too many attempts. Try again in 15 minutes.'}), 429
     try:
         body = request.get_json(silent=True) or {}
         pin_bytes = str(body.get('pin', '')).encode('utf-8')
         submitted = hashlib.sha256(pin_bytes).hexdigest()
-        # Use constant-time compare to prevent timing attacks
         if not _secrets.compare_digest(submitted, ADMIN_PIN_HASH):
-            return jsonify({'status': 'error', 'message': 'Invalid PIN.'}), 401
+            _record_failed_attempt(ip)
+            remaining = MAX_ATTEMPTS - len(_failed_attempts.get(ip, []))
+            return jsonify({'status': 'error',
+                            'message': f'Invalid PIN. {max(0,remaining)} attempts remaining.'}), 401
+        _clear_failed_attempts(ip)
         token = _secrets.token_hex(32)
         with _admin_lock:
             _admin_tokens[token] = time.time()
@@ -848,7 +941,6 @@ def admin_auth():
 
 @app.route('/api/admin/logout', methods=['POST'])
 def admin_logout():
-    """Invalidate an admin session token."""
     token = request.headers.get('X-Admin-Token', '')
     with _admin_lock:
         _admin_tokens.pop(token, None)
@@ -857,21 +949,20 @@ def admin_logout():
 
 @app.route('/api/admin/fpi', methods=['POST'])
 def admin_set_fpi():
-    """Admin-only: persist the week's FPI reading to Redis/cache."""
+    """Admin-only: persist the week's FPI reading."""
     token = request.headers.get('X-Admin-Token', '')
     if not _is_valid_token(token):
         return jsonify({'status': 'error', 'message': 'Unauthorised.'}), 401
     try:
-        body = request.get_json(silent=True) or {}
+        body   = request.get_json(silent=True) or {}
         weekly = body.get('weekly')
         ytd    = body.get('ytd')
         if weekly is None:
             return jsonify({'status': 'error', 'message': 'weekly field required.'}), 400
         weekly = float(weekly)
-        # Sanity check: plausible range for weekly FPI equity flow in ₹ Cr
         if not (-100000 < weekly < 50000):
             return jsonify({'status': 'error',
-                            'message': f'weekly={weekly} is outside plausible range (-100000 to 50000).'}), 400
+                            'message': f'weekly={weekly} outside plausible range.'}), 400
         payload = {
             'weekly'    : round(weekly, 2),
             'ytd'       : round(float(ytd), 2) if ytd is not None else None,
@@ -885,7 +976,6 @@ def admin_set_fpi():
 
 @app.route('/api/admin/fpi', methods=['GET'])
 def admin_get_fpi():
-    """Admin-only: read back the currently stored FPI override."""
     token = request.headers.get('X-Admin-Token', '')
     if not _is_valid_token(token):
         return jsonify({'status': 'error', 'message': 'Unauthorised.'}), 401
@@ -895,8 +985,7 @@ def admin_get_fpi():
 
 @app.route('/api/fpi_public', methods=['GET'])
 def fpi_public():
-    """Public (no auth): returns the admin-set FPI so the dashboard
-    can display the latest reading without exposing the edit UI."""
+    """Public: returns admin-set FPI values (no auth needed)."""
     data = get_state('fpi_admin')
     if not data:
         return jsonify({'status': 'none'})
