@@ -1797,14 +1797,14 @@
                 mathHtml = `
                         <div class="info-box-title" style="color:var(--primary);">Active Equation: Stage 1 (Sigmoid Onset)</div>
                         <div style="font-family:var(--font-mono); font-size:12px; color:var(--text); line-height:1.6; font-weight:500; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:8px;">
-                            1. Score = 0.48·RV + 0.25·Gap + 0.15·FPI + 0.12·VIX<br>
+                            1. Score = 0.48·RV + 0.25·Gap + 0.10·FPI + 0.17·VIX<br>
                             2. Target = 10% Floor + 30·σ(25) + 30·σ(50) + 30·σ(70)
                         </div>
                         <div style="margin-bottom:12px; font-size:11px; color:var(--muted); text-transform:uppercase; font-weight:600;">Regression Weights driving Score (${score})</div>
                         ${buildRow("Realized Volatility", "48%")}
                         ${buildRow("100-DMA Gap", "25%")}
-                        ${buildRow("FPI Outflow", "15%")}
-                        ${buildRow("India VIX", "12%")}
+                        ${buildRow("FPI Outflow", "10%")}
+                        ${buildRow("India VIX", "17%")}
                     `;
               }
               breakdownEl.innerHTML = mathHtml;
@@ -1837,13 +1837,13 @@
             const fpi = live.fpiWeekly ?? -1200;
 
             // Stage 1 onset score (weights match backend calculate_v3_magnitude_hedge)
-            // Score = 0.48·RV + 0.25·|gap| + 0.15·FPI_flag + 0.12·VIX_norm
+            // Score = 0.48·RV + 0.25·|gap| + 0.10·FPI_flag + 0.17·VIX_norm
             const rvNorm = Math.min(vix / 60, 1);
             const gapNorm = Math.min(ddSignal / 20, 1);
             const fpiFlagNorm = fpi < -5000 ? 1 : (fpi < 0 ? Math.abs(fpi) / 5000 : 0);
             const vixNorm = Math.min(vix / 40, 1);
             const onsetScore = Math.round(
-              (0.48 * rvNorm + 0.25 * gapNorm + 0.15 * fpiFlagNorm + 0.12 * vixNorm) * 100
+              (0.48 * rvNorm + 0.25 * gapNorm + 0.10 * fpiFlagNorm + 0.17 * vixNorm) * 100
             );
 
             // Sigmoid allocation (Stage 1): floor 10% + three sigmoid steps at 25/50/70
