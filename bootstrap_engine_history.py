@@ -109,9 +109,9 @@ def _run_engine_day(vix, rv20d, fpi_net, gap_pct, current_price,
     vixN = min(100.0, max(0.0, (vix    - 10.0)  / 30.0 * 100.0))
 
     msf_active = (rv20d > 18.0 and ret_5d > -3.0)
-    fpi_weight = 0.15 * (0.8 if msf_active else 1.0)
+    fpi_weight = 0.10 * (0.8 if msf_active else 1.0)
 
-    onset_score = 0.48*rvN + 0.25*gapN + fpi_weight*fpiN + 0.12*vixN
+    onset_score = 0.48*rvN + 0.25*gapN + fpi_weight*fpiN + 0.17*vixN
     s1_target   = _get_continuous_notional(onset_score)
 
     # 3. Stage 2 active phase
