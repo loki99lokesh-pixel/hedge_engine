@@ -1,4 +1,4 @@
-date,nifty_close,vix,nifty_realvol20d,fpi_net_equity_cr,usdinr,tri,engine_hedge_target,engine_stage
+Date,Nifty_Close,VIX,Nifty_RealVol20d,FPI_Net_Equity_Cr,usdinr,tri,Engine_Hedge_Target,Engine_Stage
 1996-01-01,908.01,,,,,,,
 1996-01-02,900.38,,,,,,,
 1996-01-03,895.96,,,,,,,
