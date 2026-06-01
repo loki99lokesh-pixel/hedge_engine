@@ -18,11 +18,7 @@ app = Flask(__name__, static_folder='.', static_url_path='')
 
 try:
     from flask_cors import CORS
-    # Lock CORS to your own Render domain + localhost for dev.
-    # Set ALLOWED_ORIGIN env var on Render to your actual URL.
-    # Falls back to localhost-only if not set (safe default).
-    _origin = os.environ.get('ALLOWED_ORIGIN', 'http://127.0.0.1:5000')
-    CORS(app, origins=[_origin, 'http://localhost:5000', 'http://127.0.0.1:5000'])
+    CORS(app)
 except ImportError:
     pass
 
@@ -135,34 +131,6 @@ def get_state(key):
         return json.loads(val) if val else None
     else:
         return LOCAL_CACHE.get(key)  # returns None if key missing — callers handle this
-
-# ══════════════════════════════════════════════════════════════
-# RATE LIMITER — brute-force protection for /api/admin/auth
-# Tracks failed attempts per IP: max 5 per 15-minute window.
-# Uses in-memory store (resets on restart) — sufficient since
-# Redis is only available on Render, not locally.
-# ══════════════════════════════════════════════════════════════
-_rate_lock   = threading.Lock()
-_failed_attempts: dict = {}   # { ip: [timestamp, ...] }
-MAX_ATTEMPTS  = 5
-RATE_WINDOW   = 15 * 60   # 15 minutes in seconds
-
-def _is_rate_limited(ip: str) -> bool:
-    """Returns True if this IP has exceeded MAX_ATTEMPTS in the last RATE_WINDOW seconds."""
-    now = time.time()
-    with _rate_lock:
-        attempts = [t for t in _failed_attempts.get(ip, []) if now - t < RATE_WINDOW]
-        _failed_attempts[ip] = attempts
-        return len(attempts) >= MAX_ATTEMPTS
-
-def _record_failed_attempt(ip: str):
-    now = time.time()
-    with _rate_lock:
-        _failed_attempts.setdefault(ip, []).append(now)
-
-def _clear_failed_attempts(ip: str):
-    with _rate_lock:
-        _failed_attempts.pop(ip, None)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -357,110 +325,299 @@ def fetch_live_data():
 
     return data
 
-# Tracks last successful cache update — used by watchdog
-_last_cache_update = 0
-
 def update_cache_loop():
-    global _last_cache_update
     while True:
         try:
             payload = fetch_live_data()
             save_state('live_market_data', payload)
-            _last_cache_update = time.time()
-            print(f"[Cache] Updated at {datetime.now(timezone.utc).strftime('%H:%M:%S')} UTC")
         except Exception as e:
             print(f"[Background Sync Error] {e}")
-        time.sleep(300)  # Re-fetch every 5 minutes
+        time.sleep(300) # Re-fetch every 5 minutes
 
-def watchdog_loop():
-    """Monitors the cache thread. If no update in 20 minutes, spawns a new cache thread."""
-    time.sleep(600)   # Give initial bootstrap + first fetch time to complete
-    while True:
-        time.sleep(300)
-        age = time.time() - _last_cache_update
-        if age > 1200:  # 20 minutes without a successful update
-            print(f"[Watchdog] Cache stale ({age/60:.0f} min) — spawning new cache thread")
-            threading.Thread(target=update_cache_loop, daemon=True).start()
+def _parse_date_column(series: pd.Series) -> pd.Series:
+    """
+    Robustly parses a date Series by trying common formats explicitly.
+    FIX: parse_dates=['Date'] silently fails on DD-MM-YYYY (common in Indian
+    exports), leaving string dtype and causing AttributeError on .date calls.
+    """
+    for fmt in ['%d-%m-%Y', '%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d']:
+        try:
+            parsed = pd.to_datetime(series, format=fmt)
+            if parsed.notna().sum() > len(series) * 0.9:
+                return parsed
+        except Exception:
+            continue
+    return pd.to_datetime(series, infer_datetime_format=True, errors='coerce')
+
+
+def _load_csv_history() -> pd.DataFrame:
+    """
+    Loads MARKET_DATA.csv from the project directory.
+
+    FAST PATH (preferred): If the CSV has Engine_Hedge_Target and Engine_Stage
+    columns (pre-computed by bootstrap_engine_history.py), we read them directly
+    and build chart_history with zero engine replay. This is instant.
+
+    SLOW PATH (fallback): If pre-computed columns are missing, falls back to the
+    original live engine replay over the last 1 year of CSV data.
+
+    Returns a DataFrame indexed by Date with at minimum:
+      Nifty_Close, VIX, Nifty_RealVol20d, FPI_Net_Equity_Cr,
+      Engine_Hedge_Target (float | NaN), Engine_Stage (str | '')
+    """
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(script_dir, 'MARKET_DATA.csv'),
+        'MARKET_DATA.csv',
+        os.path.join(script_dir, 'MASTER_CLEAN_UPDATED.csv'),
+        'MASTER_CLEAN_UPDATED.csv',
+    ]
+    needed = ['Nifty_Close', 'VIX', 'Nifty_RealVol20d', 'FPI_Net_Equity_Cr']
+
+    for path in candidates:
+        if not os.path.exists(path):
+            continue
+        try:
+            # Read WITHOUT parse_dates — parse Date column explicitly below
+            df = pd.read_csv(path, low_memory=False)
+
+            if 'Date' not in df.columns:
+                raise ValueError(f"'Date' column missing. Found: {df.columns.tolist()}")
+
+            df['Date'] = _parse_date_column(df['Date'])
+            invalid = df['Date'].isna().sum()
+            if invalid > len(df) * 0.1:
+                raise ValueError(f"Date parsing produced {invalid} NaT values")
+
+            df = df.dropna(subset=['Date']).sort_values('Date').set_index('Date')
+
+            for col in needed:
+                if col not in df.columns:
+                    df[col] = float('nan')
+
+            # Ensure engine columns exist (may be absent in older CSV versions)
+            if 'Engine_Hedge_Target' not in df.columns:
+                df['Engine_Hedge_Target'] = float('nan')
+            if 'Engine_Stage' not in df.columns:
+                df['Engine_Stage'] = ''
+
+            df[needed] = df[needed].ffill().bfill()
+
+            fname = os.path.basename(path)
+            pre_computed = df['Engine_Hedge_Target'].notna().sum()
+            print(f"[Bootstrap] {fname} loaded: {len(df)} rows "
+                  f"{df.index[0].date()} → {df.index[-1].date()} "
+                  f"| Pre-computed rows: {pre_computed}")
+            return df
+        except Exception as e:
+            print(f"[Bootstrap] {path} failed: {e}")
+
+    print("[Bootstrap] No CSV found — will use yfinance fallback")
+    return pd.DataFrame()
+
 
 def bootstrap_v3_state():
     """
-    Replays 1 year of daily Nifty closes through the v3 engine logic
-    to seed peak_price, trough_price and days_in_dd correctly.
+    Initialises v3 engine state and chart history in Redis on first boot.
 
-    Only runs on first boot (peak_price == 0) so it never overwrites
-    a healthy running state. After bootstrap the normal 5-min loop
-    takes over and keeps state current.
+    FAST PATH (CSV has Engine_Hedge_Target column):
+      Reads pre-computed hedge targets directly from CSV — no engine replay.
+      Loads up to 3,650 days (10 years) of history from 2015 onwards.
+      Completes in under 1 second.
+
+    SLOW PATH (CSV missing pre-computed columns):
+      Falls back to live engine replay over last 1 year of CSV data.
+      Run bootstrap_engine_history.py to pre-compute and avoid this path.
+
+    YFINANCE FALLBACK (no CSV at all):
+      Downloads 1 year of Nifty data and replays with neutral VIX/FPI seeds.
+
+    On subsequent boots with healthy Redis state: skips everything immediately.
     """
     state = load_v3_state()
     if state.get('peak_price', 0) != 0:
-        print("[Bootstrap] State already initialised — skipping historical replay.")
+        print("[Bootstrap] State already initialised — skipping.")
         return
 
-    print("[Bootstrap] Fresh state detected — replaying 1 year of Nifty history to seed peak/trough/days_in_dd...")
+    print("[Bootstrap] Fresh state — initialising from CSV...")
     try:
-        df = yf.download('^NSEI', period='1y', interval='1d', progress=False, threads=False)
-        if df.empty:
-            raise ValueError("Empty data from yfinance")
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-        close_col = 'Close' if 'Close' in df.columns else df.columns[-1]
-        series = df[close_col].dropna()
+        csv_df = _load_csv_history()
 
-        # Replay each day chronologically through the engine
-        # Use neutral/seeded inputs for vol/fpi — we only care about
-        # peak, trough and days_in_dd being correctly bootstrapped
-        replay_state = {
-            'peak_price'  : 0,
-            'trough_price': float('inf'),
-            'days_in_dd'  : 0,
-            'low_vol_days': 0,
-            'prev_hedge'  : 0,
-            'last_date'   : '',
-        }
-        # Compute a rolling peak so gap_pct (dd_from_peak_pct) is realistic
-        # per bar. Using gap_pct=0.0 suppressed onset_score throughout the
-        # replay, leaving prev_hedge underseeded — then the first live call
-        # wrote a higher prev_hedge, and an immediate refresh saw that higher
-        # prev_hedge vs a slightly different final_target and triggered the
-        # de-escalation gate (Stage 1 → Stage 3 bug on refresh).
-        replay_rolling_peak = 0.0
-        for price in series:
-            price_f = float(price)
-            replay_rolling_peak = max(replay_rolling_peak, price_f)
-            replay_gap = ((price_f / replay_rolling_peak) - 1) * 100 if replay_rolling_peak > 0 else 0.0
-            _, _, _, replay_state = phe.calculate_v3_magnitude_hedge(
-                vix=18.0, rv20d=14.0, fpi_net=-1200,
-                gap_pct=replay_gap,   # realistic dd_from_peak_pct per bar
-                current_price=price_f,
-                state=replay_state,
-                ret_5d=0.0,
-                new_calendar_day=True
+        # ── Determine start date: 2015-01-01 or earliest available ──────────
+        start_date = pd.Timestamp('2015-01-01')
+
+        if not csv_df.empty:
+            has_precomputed = (
+                'Engine_Hedge_Target' in csv_df.columns
+                and csv_df['Engine_Hedge_Target'].notna().sum() > 100
             )
 
-        # Persist the bootstrapped state
-        replay_state['last_date'] = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-        save_v3_state(replay_state)
-        print(f"[Bootstrap] Done. Peak: {replay_state['peak_price']:,.0f} | "
-              f"Trough: {replay_state['trough_price']:,.0f} | "
-              f"Days in DD: {replay_state['days_in_dd']}")
+            if has_precomputed:
+                # ════════════════════════════════════════════════════════════
+                # FAST PATH — read pre-computed columns directly
+                # ════════════════════════════════════════════════════════════
+                print("[Bootstrap] Fast path — reading pre-computed engine columns...")
+
+                # Slice from 2015 onwards (where Engine_Hedge_Target is filled)
+                recent = csv_df[csv_df.index >= start_date].copy()
+                recent = recent[recent['Engine_Hedge_Target'].notna()]
+
+                if len(recent) < 10:
+                    raise ValueError("Pre-computed column exists but has < 10 valid rows")
+
+                chart_history = []
+                rolling_peak  = 0.0
+
+                for date_idx, row in recent.iterrows():
+                    price_f = float(row['Nifty_Close'])
+                    if pd.isna(price_f) or price_f <= 0:
+                        continue
+
+                    rolling_peak = max(rolling_peak, price_f)
+                    gap_pct = ((price_f / rolling_peak) - 1) * 100 if rolling_peak > 0 else 0.0
+
+                    date_str = (date_idx.strftime('%Y-%m-%d')
+                                if hasattr(date_idx, 'strftime') else str(date_idx)[:10])
+                    chart_history.append({
+                        'date'        : date_str,
+                        'hedge_target': float(row['Engine_Hedge_Target']),
+                        'drawdown'    : round(gap_pct, 2),
+                        'stage'       : str(row.get('Engine_Stage', 'Stage 1 — Onset')),
+                        'nifty'       : round(price_f, 0),
+                    })
+
+                # Build engine state from the last row
+                last_row   = recent.iloc[-1]
+                last_price = float(last_row['Nifty_Close'])
+                bootstrap_state = dict(_V3_STATE_DEFAULTS)
+                bootstrap_state['trough_price'] = float('inf')
+                bootstrap_state['peak_price']   = rolling_peak
+                bootstrap_state['last_date']    = (
+                    recent.index[-1].strftime('%Y-%m-%d')
+                    if hasattr(recent.index[-1], 'strftime')
+                    else str(recent.index[-1])[:10]
+                )
+
+                print(f"[Bootstrap] Fast path done. "
+                      f"Rows loaded: {len(chart_history)} | "
+                      f"HWM: {rolling_peak:,.0f} | "
+                      f"Last date: {bootstrap_state['last_date']}")
+
+            else:
+                # ════════════════════════════════════════════════════════════
+                # SLOW PATH — live engine replay (pre-computed columns missing)
+                # ════════════════════════════════════════════════════════════
+                print("[Bootstrap] Pre-computed columns not found — running engine replay...")
+                print("[Bootstrap] Tip: run bootstrap_engine_history.py to pre-compute "
+                      "and make future boots instant.")
+
+                from datetime import timedelta
+                cutoff = datetime.now(timezone.utc).date() - timedelta(days=365)
+                recent = csv_df[csv_df.index.date >= cutoff]
+                if len(recent) < 50:
+                    recent = csv_df.tail(252)
+
+                bootstrap_state = dict(_V3_STATE_DEFAULTS)
+                bootstrap_state['trough_price'] = float('inf')
+                replay_rolling_peak = 0.0
+                chart_history = []
+
+                for date_idx, row in recent.iterrows():
+                    price_f = float(row['Nifty_Close'])
+                    if pd.isna(price_f) or price_f <= 0:
+                        continue
+                    vix_val   = float(row['VIX']) if not pd.isna(row['VIX']) else 18.0
+                    rv20d_val = (float(row['Nifty_RealVol20d'])
+                                 if not pd.isna(row['Nifty_RealVol20d']) else vix_val * 0.75)
+                    fpi_daily = (float(row['FPI_Net_Equity_Cr'])
+                                 if not pd.isna(row['FPI_Net_Equity_Cr']) else -1200.0)
+                    fpi_weekly = fpi_daily * 5
+
+                    replay_rolling_peak = max(replay_rolling_peak, price_f)
+                    replay_gap = ((price_f / replay_rolling_peak) - 1) * 100 if replay_rolling_peak > 0 else 0.0
+
+                    hedge_target, active_stage, _, bootstrap_state = phe.calculate_v3_magnitude_hedge(
+                        vix=vix_val, rv20d=rv20d_val, fpi_net=fpi_weekly,
+                        gap_pct=replay_gap, current_price=price_f,
+                        state=bootstrap_state, ret_5d=0.0, new_calendar_day=True
+                    )
+                    date_str = (date_idx.strftime('%Y-%m-%d')
+                                if hasattr(date_idx, 'strftime') else str(date_idx)[:10])
+                    chart_history.append({
+                        'date'        : date_str,
+                        'hedge_target': round(float(hedge_target), 1),
+                        'drawdown'    : round(float(replay_gap), 2),
+                        'stage'       : active_stage,
+                        'nifty'       : round(price_f, 0),
+                    })
+
+                print(f"[Bootstrap] Replay done. "
+                      f"Peak: {bootstrap_state['peak_price']:,.0f} | "
+                      f"Chart points: {len(chart_history)}")
+
+        else:
+            # ════════════════════════════════════════════════════════════════
+            # YFINANCE FALLBACK — no CSV available
+            # ════════════════════════════════════════════════════════════════
+            print("[Bootstrap] No CSV — falling back to yfinance with neutral seeds...")
+            yf_df = yf.download('^NSEI', period='1y', interval='1d',
+                                 progress=False, threads=False)
+            if isinstance(yf_df.columns, pd.MultiIndex):
+                yf_df.columns = yf_df.columns.get_level_values(0)
+            close_col = 'Close' if 'Close' in yf_df.columns else yf_df.columns[-1]
+            recent = pd.DataFrame({'Nifty_Close': yf_df[close_col].dropna()})
+            recent['VIX']               = 18.0
+            recent['Nifty_RealVol20d']  = 14.0
+            recent['FPI_Net_Equity_Cr'] = -1200.0
+
+            bootstrap_state = dict(_V3_STATE_DEFAULTS)
+            bootstrap_state['trough_price'] = float('inf')
+            replay_rolling_peak = 0.0
+            chart_history = []
+
+            for date_idx, row in recent.iterrows():
+                price_f = float(row['Nifty_Close'])
+                if pd.isna(price_f) or price_f <= 0:
+                    continue
+                replay_rolling_peak = max(replay_rolling_peak, price_f)
+                replay_gap = ((price_f / replay_rolling_peak) - 1) * 100 if replay_rolling_peak > 0 else 0.0
+                hedge_target, active_stage, _, bootstrap_state = phe.calculate_v3_magnitude_hedge(
+                    vix=18.0, rv20d=14.0, fpi_net=-6000.0,
+                    gap_pct=replay_gap, current_price=price_f,
+                    state=bootstrap_state, ret_5d=0.0, new_calendar_day=True
+                )
+                date_str = (date_idx.strftime('%Y-%m-%d')
+                            if hasattr(date_idx, 'strftime') else str(date_idx)[:10])
+                chart_history.append({
+                    'date'        : date_str,
+                    'hedge_target': round(float(hedge_target), 1),
+                    'drawdown'    : round(float(replay_gap), 2),
+                    'stage'       : active_stage,
+                    'nifty'       : round(price_f, 0),
+                })
+            print(f"[Bootstrap] yfinance fallback done. Points: {len(chart_history)}")
+            bootstrap_state['peak_price'] = replay_rolling_peak
+
+        # ── Persist to Redis ──────────────────────────────────────────────────
+        bootstrap_state['last_date'] = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        save_v3_state(bootstrap_state)
+        # Store up to 3,650 days (10 years) — covers 2015 → present
+        save_state('v3_chart_history', chart_history[-3650:])
+        print(f"[Bootstrap] Redis seeded. Chart points stored: {len(chart_history[-3650:])}")
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"[Bootstrap] Failed — engine will self-correct over coming days: {e}")
 
-def startup_sequence():
-    """
-    Runs bootstrap then starts the cache loop — all in one background thread.
-    This prevents Gunicorn workers from timing out on cold-start bootstrap.
-    The first /api/v3_hedge call within ~30s of boot uses seeded state,
-    which is safe — bootstrap completes before real traffic arrives on Render.
-    """
-    bootstrap_v3_state()
-    update_cache_loop()   # loops forever after bootstrap
+# Run bootstrap synchronously FIRST — blocks until complete so that
+# the first /api/v3_hedge call always sees a fully seeded state.
+# Only takes time on first boot or after a reset (peak_price == 0).
+# On normal restarts with healthy Redis state it returns in milliseconds.
+bootstrap_v3_state()
 
-# Start the full startup sequence in background
-threading.Thread(target=startup_sequence, daemon=True).start()
-# Start watchdog in its own thread
-threading.Thread(target=watchdog_loop, daemon=True).start()
+# Background loop starts AFTER bootstrap is done
+threading.Thread(target=update_cache_loop, daemon=True).start()
 
 # ══════════════════════════════════════════════════════════════
 # HELPER: Build portfolio DataFrame from frontend payload
@@ -518,24 +675,6 @@ def build_portfolio_df(holdings):
 # ══════════════════════════════════════════════════════════════
 # WEB ROUTES
 # ══════════════════════════════════════════════════════════════
-@app.route('/health')
-def health():
-    """Health check — Render and uptime monitors ping this."""
-    cache_age = None
-    cached = get_state('live_market_data')
-    if cached and cached.get('timestamp'):
-        try:
-            fetched_at = datetime.fromisoformat(cached['timestamp'].replace('Z', '+00:00'))
-            cache_age  = round((datetime.now(timezone.utc) - fetched_at).total_seconds() / 60, 1)
-        except Exception:
-            pass
-    return jsonify({
-        'status'         : 'ok',
-        'cache_age_min'  : cache_age,
-        'cache_fresh'    : cache_age is not None and cache_age < 15,
-        'redis_connected': db is not None,
-    })
-
 @app.route('/')
 def index():
     return send_from_directory(app.static_folder, 'dashboard.html')
@@ -738,15 +877,12 @@ def get_v3_magnitude_hedge():
         except Exception:
             rv20d = vix * 0.65
 
-        # 2. FPI — admin-stored value takes priority over query param
-        admin_fpi_data = get_state('fpi_admin')
-        if admin_fpi_data and admin_fpi_data.get('weekly') is not None:
-            fpi = float(admin_fpi_data['weekly'])
-        else:
-            try:
-                fpi = float(request.args.get('fpi', -1200))
-            except (TypeError, ValueError):
-                fpi = -1200
+        # 2. FPI weekly outflow — read from query param sent by the dashboard
+        # Dashboard sends live.fpiWeekly (user-entered via the ✎ edit field)
+        try:
+            fpi = float(request.args.get('fpi', -1200))
+        except (TypeError, ValueError):
+            fpi = -1200
 
         # 3. portfolio_beta — defaults to 1.0 for the main dashboard (pure Nifty exposure).
         # The portfolio hedge page passes the user's actual computed beta via ?beta=X
@@ -787,12 +923,26 @@ def get_v3_magnitude_hedge():
         # 6. Scale by portfolio beta (1.0 for dashboard = no scaling, pure Nifty target)
         adjusted_hedge = min(100.0, nifty_hedge * portfolio_beta)
 
-        # 7. Persist updated state for next call (include today's date).
-        # prev_hedge ratchet logic is now handled inside the engine itself —
-        # new_state['prev_hedge'] is already max(incoming, final_target).
-        # No override needed here.
+        # 7. Persist updated state + append live chart point
         new_state['last_date'] = today_str
         save_v3_state(new_state)
+
+        # Append today's live point to chart history (once per calendar day)
+        if new_calendar_day:
+            try:
+                history = get_state('v3_chart_history') or []
+                # Avoid duplicate dates
+                if not history or history[-1].get('date') != today_str:
+                    history.append({
+                        'date'        : today_str,
+                        'hedge_target': round(adjusted_hedge, 1),
+                        'drawdown'    : round(dd_from_peak_pct, 2),
+                        'stage'       : active_stage,
+                        'nifty'       : round(nifty_close, 0),
+                    })
+                    save_state('v3_chart_history', history[-3650:])  # rolling 10 years
+            except Exception as e:
+                print(f"[Chart History] Append failed: {e}")
 
         return jsonify({
             'status': 'success',
@@ -818,11 +968,8 @@ def get_v3_magnitude_hedge():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/v3_reset', methods=['POST'])
-def reset_v3_state():
-    """Clears v3.2 state — admin token required."""
-    token = request.headers.get('X-Admin-Token', '')
-    if ADMIN_PIN_HASH and not _is_valid_token(token):
-        return jsonify({'status': 'error', 'message': 'Unauthorised.'}), 401
+def reset_v3_state(): 
+    # Clears the persisted v3.2 state file so the engine starts fresh.
     try: 
         fresh_state = {
             'peak_price'   : 0, 
@@ -842,12 +989,21 @@ def reset_v3_state():
     except Exception as e: 
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/api/v3_chart', methods=['GET'])
+def get_v3_chart():
+    """Returns up to 3,650 days (10 years) of engine performance history.
+    Each point: {date, hedge_target, drawdown, stage, nifty}
+    Pre-computed from 2015 via bootstrap_engine_history.py; live-appended daily.
+    """
+    try:
+        history = get_state('v3_chart_history') or []
+        return jsonify({'status': 'success', 'data': history})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/api/v3_state', methods=['GET'])
 def get_v3_state_debug():
-    """Returns raw v3 state — admin token required."""
-    token = request.headers.get('X-Admin-Token', '')
-    if ADMIN_PIN_HASH and not _is_valid_token(token):
-        return jsonify({'status': 'error', 'message': 'Unauthorised.'}), 401
+    """Returns the current raw v3 state — useful for diagnosing Stage 3 persistence."""
     try:
         state = load_v3_state()
         return jsonify({'status': 'success', 'state': state})
@@ -860,138 +1016,5 @@ if __name__ == '__main__':
     print("  Starting Institutional Risk Engine Server")
     print("  Main Dashboard:  http://127.0.0.1:5000/")
     print("  Portfolio Tool:  http://127.0.0.1:5000/portfolio")
-    print("  Health Check:    http://127.0.0.1:5000/health")
     print("=" * 60)
-    if not ADMIN_PIN_HASH:
-        print()
-        print("  ⚠  ADMIN_PIN_HASH not set — admin panel will return 503.")
-        print("  To set it for this session, run in the same terminal BEFORE")
-        print("  starting the server:")
-        print()
-        print("  Windows (PowerShell):")
-        print("    $env:ADMIN_PIN_HASH = (python -c \"import hashlib; print(hashlib.sha256(b'YOUR_PIN').hexdigest())\")")
-        print("    python backend.py")
-        print()
-        print("  Mac/Linux:")
-        print("    export ADMIN_PIN_HASH=$(python3 -c \"import hashlib; print(hashlib.sha256(b'YOUR_PIN').hexdigest())\")")
-        print("    python3 backend.py")
-        print()
-        print("  On Render: set ADMIN_PIN_HASH in Environment tab.")
-        print("=" * 60)
     app.run(debug=True, port=5000, use_reloader=False)
-
-# ══════════════════════════════════════════════════════════════
-# ADMIN AUTH + FPI MANAGEMENT
-# ══════════════════════════════════════════════════════════════
-import hashlib
-import secrets as _secrets
-
-ADMIN_PIN_HASH = os.environ.get('ADMIN_PIN_HASH', '')
-
-_admin_tokens: dict = {}
-_admin_lock = threading.Lock()
-ADMIN_TOKEN_TTL = 12 * 3600  # 12 hours
-
-
-def _purge_expired():
-    now = time.time()
-    with _admin_lock:
-        dead = [t for t, ts in _admin_tokens.items() if now - ts > ADMIN_TOKEN_TTL]
-        for t in dead:
-            del _admin_tokens[t]
-
-
-def _is_valid_token(token: str) -> bool:
-    if not token:
-        return False
-    _purge_expired()
-    with _admin_lock:
-        ts = _admin_tokens.get(token)
-    return ts is not None and (time.time() - ts) < ADMIN_TOKEN_TTL
-
-
-@app.route('/api/admin/auth', methods=['POST'])
-def admin_auth():
-    """Verify admin PIN with rate limiting → return session token."""
-    if not ADMIN_PIN_HASH:
-        return jsonify({'status': 'error',
-                        'message': 'Admin not configured on this server.'}), 503
-    # Rate limit check
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip()
-    if _is_rate_limited(ip):
-        return jsonify({'status': 'error',
-                        'message': 'Too many attempts. Try again in 15 minutes.'}), 429
-    try:
-        body = request.get_json(silent=True) or {}
-        pin_bytes = str(body.get('pin', '')).encode('utf-8')
-        submitted = hashlib.sha256(pin_bytes).hexdigest()
-        if not _secrets.compare_digest(submitted, ADMIN_PIN_HASH):
-            _record_failed_attempt(ip)
-            remaining = MAX_ATTEMPTS - len(_failed_attempts.get(ip, []))
-            return jsonify({'status': 'error',
-                            'message': f'Invalid PIN. {max(0,remaining)} attempts remaining.'}), 401
-        _clear_failed_attempts(ip)
-        token = _secrets.token_hex(32)
-        with _admin_lock:
-            _admin_tokens[token] = time.time()
-        return jsonify({'status': 'success', 'token': token})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@app.route('/api/admin/logout', methods=['POST'])
-def admin_logout():
-    token = request.headers.get('X-Admin-Token', '')
-    with _admin_lock:
-        _admin_tokens.pop(token, None)
-    return jsonify({'status': 'success'})
-
-
-@app.route('/api/admin/fpi', methods=['POST'])
-def admin_set_fpi():
-    """Admin-only: persist the week's FPI reading."""
-    token = request.headers.get('X-Admin-Token', '')
-    if not _is_valid_token(token):
-        return jsonify({'status': 'error', 'message': 'Unauthorised.'}), 401
-    try:
-        body   = request.get_json(silent=True) or {}
-        weekly = body.get('weekly')
-        ytd    = body.get('ytd')
-        if weekly is None:
-            return jsonify({'status': 'error', 'message': 'weekly field required.'}), 400
-        weekly = float(weekly)
-        if not (-100000 < weekly < 50000):
-            return jsonify({'status': 'error',
-                            'message': f'weekly={weekly} outside plausible range.'}), 400
-        payload = {
-            'weekly'    : round(weekly, 2),
-            'ytd'       : round(float(ytd), 2) if ytd is not None else None,
-            'updated_at': datetime.now(timezone.utc).isoformat(),
-        }
-        save_state('fpi_admin', payload)
-        return jsonify({'status': 'success', 'saved': payload})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@app.route('/api/admin/fpi', methods=['GET'])
-def admin_get_fpi():
-    token = request.headers.get('X-Admin-Token', '')
-    if not _is_valid_token(token):
-        return jsonify({'status': 'error', 'message': 'Unauthorised.'}), 401
-    data = get_state('fpi_admin')
-    return jsonify({'status': 'success', 'data': data})
-
-
-@app.route('/api/fpi_public', methods=['GET'])
-def fpi_public():
-    """Public: returns admin-set FPI values (no auth needed)."""
-    data = get_state('fpi_admin')
-    if not data:
-        return jsonify({'status': 'none'})
-    return jsonify({
-        'status'    : 'ok',
-        'weekly'    : data.get('weekly'),
-        'ytd'       : data.get('ytd'),
-        'updated_at': data.get('updated_at'),
-    })
