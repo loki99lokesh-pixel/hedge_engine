@@ -435,8 +435,7 @@ def bootstrap_v3_state():
     On subsequent boots with healthy Redis state: skips everything immediately.
     """
     state = load_v3_state()
-    chart = get_state('v3_chart_history') or []
-    if state.get('peak_price', 0) != 0 and len(chart) > 0:
+    if state.get('peak_price', 0) != 0:
         print("[Bootstrap] State already initialised — skipping.")
         return
 
