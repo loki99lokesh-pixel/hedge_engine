@@ -11,6 +11,8 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
     rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
   <style>
     :root {
       --bg: #F8F9FA;
@@ -1387,27 +1389,107 @@
     <div class="two-col">
       <div class="card">
         <div class="card-title">
-          Intraday Structure
-          <span class="card-title-badge chart-badge-simulated" id="chart-mode-badge">Simulated Intraday</span>
+          Engine Performance
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span class="card-title-badge" id="chart-mode-badge"
+              style="background:#ECFDF5;color:#10B981;border-color:#A7F3D0;">v3.2 Live</span>
+            <!-- Zoom range buttons -->
+            <div style="display:flex; gap:4px;">
+              <button onclick="setChartWindow(14)" id="zb-2w" style="font-family:var(--font-mono);font-size:9px;font-weight:600;
+                  padding:3px 7px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);
+                  background:var(--bg3);color:var(--muted2);">2W</button>
+              <button onclick="setChartWindow(30)" id="zb-1m" style="font-family:var(--font-mono);font-size:9px;font-weight:600;
+                  padding:3px 7px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);
+                  background:var(--bg3);color:var(--muted2);">1M</button>
+              <button onclick="setChartWindow(90)" id="zb-3m" style="font-family:var(--font-mono);font-size:9px;font-weight:600;
+                  padding:3px 7px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);
+                  background:var(--bg3);color:var(--muted2);">3M</button>
+              <button onclick="setChartWindow(180)" id="zb-6m" style="font-family:var(--font-mono);font-size:9px;font-weight:600;
+                  padding:3px 7px;border-radius:4px;cursor:pointer;border:1px solid var(--primary);
+                  background:var(--primary-bg);color:var(--primary);">6M</button>
+              <button onclick="setChartWindow(365)" id="zb-1y" style="font-family:var(--font-mono);font-size:9px;font-weight:600;
+                  padding:3px 7px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);
+                  background:var(--bg3);color:var(--muted2);">1Y</button>
+              <button onclick="setChartWindow(1095)" id="zb-3y" style="font-family:var(--font-mono);font-size:9px;font-weight:600;
+                  padding:3px 7px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);
+                  background:var(--bg3);color:var(--muted2);">3Y</button>
+              <button onclick="setChartWindow(0)" id="zb-all" style="font-family:var(--font-mono);font-size:9px;font-weight:600;
+                  padding:3px 7px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);
+                  background:var(--bg3);color:var(--muted2);">ALL</button>
+              <button onclick="resetChartZoom()" id="zb-reset" style="font-family:var(--font-mono);font-size:9px;font-weight:600;
+                  padding:3px 7px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);
+                  background:var(--bg3);color:var(--muted); display:none;">↺</button>
+            </div>
+          </div>
         </div>
-        <div class="chart-container"><canvas id="niftyChart"></canvas></div>
-        <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap;">
+        <div class="chart-container"><canvas id="engineChart"></canvas></div>
+        <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap; align-items:center;">
           <div style="font-size:11px; color:var(--muted); font-weight:500;">
             <span
-              style="display:inline-block; width:10px; height:2px; background:var(--primary); vertical-align:middle; margin-right:4px;"></span>Nifty
-            50
+              style="display:inline-block; width:10px; height:2px; background:var(--primary); vertical-align:middle; margin-right:4px;"></span>
+            Hedge Target %
           </div>
           <div style="font-size:11px; color:var(--muted); font-weight:500;">
             <span
-              style="display:inline-block; width:10px; height:2px; border-top: 2px dashed var(--amber); vertical-align:middle; margin-right:4px;"></span>100-DMA:
-            <span id="lbl_chart_dma" style="font-family:var(--font-mono); font-weight:600;">—</span>
+              style="display:inline-block; width:10px; height:3px; background:rgba(239,68,68,0.5); vertical-align:middle; margin-right:4px;"></span>
+            Drawdown from HWM %
           </div>
-          <div style="font-size:11px; color:var(--muted); font-weight:500;">
-            Open: <span id="lbl_chart_open" style="font-family:var(--font-mono); font-weight:600;">—</span>
+          <div style="margin-left:auto; font-family:var(--font-mono); font-size:10px; color:var(--muted);"
+            id="chart-point-count">— points</div>
+        </div>
+
+        <!-- ── Engine Stat Strip ─────────────────────────────────── -->
+        <div id="engineStatStrip" style="
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 1px;
+          margin-top: 12px;
+          background: var(--border);
+          border: 1px solid var(--border);
+          border-radius: var(--r2);
+          overflow: hidden;
+        ">
+          <!-- HWM -->
+          <div style="background:var(--bg); padding:10px 14px;">
+            <div style="font-family:var(--font-mono); font-size:9px; font-weight:600;
+              text-transform:uppercase; color:var(--muted); letter-spacing:0.04em; margin-bottom:4px;">
+              Engine HWM
+            </div>
+            <div id="stat-hwm" style="font-family:var(--font-mono); font-size:15px;
+              font-weight:700; color:var(--text); line-height:1;">—</div>
+            <div id="stat-hwm-date" style="font-size:10px; color:var(--muted); margin-top:3px;">
+              Peak price in window
+            </div>
+          </div>
+          <!-- Current DD -->
+          <div style="background:var(--bg); padding:10px 14px;">
+            <div style="font-family:var(--font-mono); font-size:9px; font-weight:600;
+              text-transform:uppercase; color:var(--muted); letter-spacing:0.04em; margin-bottom:4px;">
+              Current DD from HWM
+            </div>
+            <div id="stat-cur-dd" style="font-family:var(--font-mono); font-size:15px;
+              font-weight:700; color:var(--text); line-height:1;">—</div>
+            <div style="font-size:10px; color:var(--muted); margin-top:3px;">
+              As of latest data point
+            </div>
+          </div>
+          <!-- Max DD -->
+          <div style="background:var(--bg); padding:10px 14px;">
+            <div style="font-family:var(--font-mono); font-size:9px; font-weight:600;
+              text-transform:uppercase; color:var(--muted); letter-spacing:0.04em; margin-bottom:4px;">
+              Max DD reached (period)
+            </div>
+            <div id="stat-max-dd" style="font-family:var(--font-mono); font-size:15px;
+              font-weight:700; color:var(--text); line-height:1;">—</div>
+            <div id="stat-max-dd-date" style="font-size:10px; color:var(--muted); margin-top:3px;">
+              Deepest trough in window
+            </div>
           </div>
         </div>
-        <div style="font-size:10px; color:var(--amber); font-family:var(--font-mono); margin-top:6px;">⚠ Intraday path
-          is seeded simulation. Last price = live close.</div>
+
+        <div style="font-size:10px; color:var(--muted); font-family:var(--font-mono); margin-top:6px;">
+          2015 → present · Pre-computed from CSV · Live appended daily · Scroll or pinch to zoom · Drag to pan
+        </div>
       </div>
 
       <div class="card">
@@ -2305,8 +2387,8 @@
       open: {}
     };
 
-    let niftyChart = null;
-    let intradaySeries = [];
+    let engineChart = null;
+    let engineChartData = [];
 
     // ═══════════════════════════════════════════════════════════
     // FPI MANUAL OVERRIDE — session-only, validated, clamped
@@ -2520,97 +2602,306 @@
       loadV3Engine();
 
       updateVerdict();
-      updateChart();
+      updateEngineChart();
       document.getElementById('lastUpdated').textContent = `Sync: ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
     }
 
     // ═══════════════════════════════════════════════════════════
     // CHART
     // ═══════════════════════════════════════════════════════════
-    function seededRand(seed) {
-      let s = seed >>> 0;
-      return function () {
-        s += 0x6D2B79F5;
-        let t = Math.imul(s ^ (s >>> 15), 1 | s);
-        t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-      };
+    // ═══════════════════════════════════════════════════════════
+    // ENGINE PERFORMANCE CHART
+    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════
+    // ENGINE PERFORMANCE CHART  (zoomable, 2015 → present)
+    // ═══════════════════════════════════════════════════════════
+
+    // Active window button tracking
+    let _activeZoomBtn = 'zb-6m';
+
+    function _highlightZoomBtn(id) {
+      ['zb-2w', 'zb-1m', 'zb-3m', 'zb-6m', 'zb-1y', 'zb-3y', 'zb-all'].forEach(bid => {
+        const el = document.getElementById(bid);
+        if (!el) return;
+        if (bid === id) {
+          el.style.border = '1px solid var(--primary)';
+          el.style.background = 'var(--primary-bg)';
+          el.style.color = 'var(--primary)';
+        } else {
+          el.style.border = '1px solid var(--border2)';
+          el.style.background = 'var(--bg3)';
+          el.style.color = 'var(--muted2)';
+        }
+      });
+      _activeZoomBtn = id;
+      // Show reset button only when user has deviated from the 6M default
+      const rb = document.getElementById('zb-reset');
+      if (rb) rb.style.display = (id !== 'zb-6m') ? 'inline-block' : 'none';
     }
 
-    function buildIntradaySeries(basePrice) {
-      if (!basePrice) return [];
-      const today = new Date();
-      const daySeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
-      const rand = seededRand(daySeed);
-      const points = [];
-      const openMin = 9 * 60 + 15;
-      // Simulate open slightly away from close
-      let price = basePrice * (0.994 + rand() * 0.012);
-      const openPrice = price;
-      for (let i = 0; i <= 75; i++) {
-        const min = openMin + i * 5;
-        const h = Math.floor(min / 60), m = min % 60;
-        price += (basePrice - price) * 0.03 + (rand() - 0.5) * basePrice * 0.003;
-        points.push({ label: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, value: Math.round(price * 100) / 100 });
+    // Set chart to show last N calendar days (0 = show all)
+    // animate=true gives a smooth eased transition between windows
+    function setChartWindow(days, animate) {
+      if (!engineChart || !engineChartData || engineChartData.length === 0) return;
+      const labels = engineChartData.map(d => d.date);
+      const total = labels.length;
+
+      let minIdx = 0;
+      if (days > 0) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - days);
+        const cutoffStr = cutoff.toISOString().slice(0, 10);
+        minIdx = labels.findIndex(l => l >= cutoffStr);
+        if (minIdx < 0) minIdx = 0;
       }
-      points[points.length - 1].value = basePrice;
-      return { points, openPrice: Math.round(openPrice) };
+
+      // FIX: use chart.options.scales.x min/max then update — this is the
+      // correct way to set a viewport in Chart.js 4.x without the zoom plugin
+      // fighting the initial render. zoomScale() called before the first paint
+      // causes the left-truncation bug because the scale hasn't been laid out yet.
+      engineChart.options.scales.x.min = minIdx;
+      engineChart.options.scales.x.max = total - 1;
+
+      if (animate) {
+        // Smooth eased transition — used when user clicks a window button
+        engineChart.update({ duration: 400, easing: 'easeInOutQuart' });
+      } else {
+        // No animation — used on initial load so the chart appears instantly correct
+        engineChart.update('none');
+      }
+
+      // Map days → button id
+      const map = {
+        14: 'zb-2w', 30: 'zb-1m', 90: 'zb-3m', 180: 'zb-6m',
+        365: 'zb-1y', 1095: 'zb-3y', 0: 'zb-all'
+      };
+      _highlightZoomBtn(map[days] !== undefined ? map[days] : 'zb-all');
+
+      // Update stat strip to reflect visible window
+      const visible = engineChartData.slice(minIdx);
+      updateEngineStats(visible);
     }
 
-    function initChart() {
-      const ctx = document.getElementById('niftyChart').getContext('2d');
-      const { points, openPrice } = buildIntradaySeries(live.nifty) || { points: [], openPrice: 0 };
-      intradaySeries = points;
-      document.getElementById('lbl_chart_dma').textContent = live.dma_used.toLocaleString('en-IN');
-      document.getElementById('lbl_chart_open').textContent = openPrice.toLocaleString('en-IN');
+    function resetChartZoom() {
+      if (!engineChart) return;
+      engineChart.resetZoom();
+      setChartWindow(180, true);
+    }
 
-      niftyChart = new Chart(ctx, {
+    async function loadEngineChart() {
+      try {
+        const res = await fetch('/api/v3_chart');
+        const json = await res.json();
+        if (json.status === 'success' && json.data && json.data.length > 0) {
+          engineChartData = json.data;
+          renderEngineChart(engineChartData);
+          const countEl = document.getElementById('chart-point-count');
+          if (countEl) countEl.textContent = json.data.length + ' days total';
+          // FIX: two rAF frames guarantee Chart.js has completed its first
+          // layout pass and the x-scale is computed before we apply the
+          // 6M viewport. No animation on this initial snap — just instant.
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            setChartWindow(180, false);
+          }));
+        }
+      } catch (e) { console.warn('Engine chart unavailable:', e.message); }
+    }
+
+    function renderEngineChart(data) {
+      const ctx = document.getElementById('engineChart');
+      if (!ctx) return;
+      const labels = data.map(d => d.date);
+      const hedgeData = data.map(d => d.hedge_target);
+      const drawdownData = data.map(d => Math.abs(d.drawdown));
+
+      if (engineChart) { engineChart.destroy(); engineChart = null; }
+
+      engineChart = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: intradaySeries.map(p => p.label),
+          labels,
           datasets: [
             {
-              label: 'Nifty 50',
-              data: intradaySeries.map(p => p.value),
-              borderColor: '#2563EB', borderWidth: 2, pointRadius: 0, tension: 0.2,
-              fill: { target: 'origin', above: 'rgba(37,99,235,0.07)' },
+              label: 'Hedge Target %', data: hedgeData,
+              borderColor: '#4F8EF7', backgroundColor: 'rgba(79,142,247,0.1)',
+              borderWidth: 2, pointRadius: 0, pointHoverRadius: 4,
+              tension: 0.3, fill: true, yAxisID: 'yHedge',
             },
             {
-              label: '100-DMA',
-              data: Array(intradaySeries.length).fill(live.dma_used),
-              borderColor: '#F59E0B', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0,
-            }
+              label: 'Drawdown %', data: drawdownData,
+              borderColor: 'rgba(248,113,113,0.8)', backgroundColor: 'rgba(248,113,113,0.1)',
+              borderWidth: 1.5, borderDash: [3, 3],
+              pointRadius: 0, pointHoverRadius: 3,
+              tension: 0.3, fill: true, yAxisID: 'yDD',
+            },
           ],
         },
         options: {
           responsive: true, maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
+          // animation:false globally — each update() call supplies its own
+          // duration/easing so button transitions work independently.
+          animation: false,
           plugins: {
             legend: { display: false },
             tooltip: {
-              backgroundColor: '#FFFFFF', titleColor: '#111827', bodyColor: '#4B5563',
-              borderColor: '#E5E7EB', borderWidth: 1,
-              titleFont: { family: 'Inter', size: 12 }, bodyFont: { family: 'JetBrains Mono', size: 12 },
+              backgroundColor: '#1E2535', titleColor: '#E8ECF4', bodyColor: '#BCC3D4',
+              borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
+              callbacks: {
+                afterBody: (items) => {
+                  const point = engineChartData[items[0]?.dataIndex];
+                  if (!point) return [];
+                  const stages = {
+                    'Stage 1 — Onset': 'S1 Early Warning',
+                    'Stage 2 — Active Phase': 'S2 Active Drawdown',
+                    'Stage 3: Escalated (MAJOR minimum)': 'S3 Major Floor',
+                    'Stage 3: Escalated (SEVERE)': 'S3 Severe Crisis',
+                    'Stage 3: Escalated (SEVERE unconditional)': 'S3 Full Hedge',
+                    'Stage 3: De-escalation Blocked (Gate closed)': 'S3 Gate Closed',
+                  };
+                  return [
+                    'Stage: ' + (stages[point.stage] || point.stage),
+                    'Nifty: ' + Number(point.nifty).toLocaleString('en-IN'),
+                  ];
+                }
+              }
+            },
+            // ── Zoom plugin config ────────────────────────────────────
+            zoom: {
+              pan: {
+                enabled: true,
+                mode: 'x',
+                onPanComplete: ({ chart }) => {
+                  _onZoomOrPan(chart);
+                  _highlightZoomBtn('');
+                  const rb = document.getElementById('zb-reset');
+                  if (rb) rb.style.display = 'inline-block';
+                },
+              },
+              zoom: {
+                wheel: { enabled: true, speed: 0.1 },
+                pinch: { enabled: true },
+                mode: 'x',
+                onZoomComplete: ({ chart }) => {
+                  _onZoomOrPan(chart);
+                  _highlightZoomBtn('');
+                  const rb = document.getElementById('zb-reset');
+                  if (rb) rb.style.display = 'inline-block';
+                },
+              },
+              limits: {
+                x: { minRange: 10 }
+              }
             },
           },
           scales: {
-            x: { ticks: { color: '#9CA3AF', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 8 }, grid: { color: '#F3F4F6' } },
-            y: { ticks: { color: '#9CA3AF', font: { family: 'JetBrains Mono', size: 11 }, callback: v => v.toLocaleString('en-IN') }, grid: { color: '#F3F4F6' }, position: 'right' },
+            x: {
+              ticks: {
+                color: '#8B92A5', font: { family: 'DM Mono', size: 9 },
+                maxTicksLimit: 10, maxRotation: 0,
+                callback: (val, idx) => {
+                  const d = labels[idx]; if (!d) return '';
+                  const p = d.split('-');
+                  return p[2] + '/' + p[1];
+                }
+              },
+              grid: { color: 'rgba(255,255,255,0.04)' }
+            },
+            yHedge: {
+              type: 'linear', position: 'left', min: 0, max: 100,
+              ticks: {
+                color: '#4F8EF7', font: { family: 'DM Mono', size: 9 },
+                callback: v => v + '%'
+              },
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              title: { display: true, text: 'Hedge Target %', color: '#4F8EF7', font: { size: 9 } }
+            },
+            yDD: {
+              type: 'linear', position: 'right', min: 0,
+              ticks: {
+                color: 'rgba(248,113,113,0.9)', font: { family: 'DM Mono', size: 9 },
+                callback: v => v + '%'
+              },
+              grid: { drawOnChartArea: false },
+              title: { display: true, text: 'Drawdown %', color: 'rgba(248,113,113,0.9)', font: { size: 9 } }
+            },
           },
         },
       });
     }
 
-    function updateChart() {
-      if (!niftyChart || !live.nifty) return;
-      const { points, openPrice } = buildIntradaySeries(live.nifty);
-      intradaySeries = points;
-      niftyChart.data.labels = intradaySeries.map(p => p.label);
-      niftyChart.data.datasets[0].data = intradaySeries.map(p => p.value);
-      niftyChart.data.datasets[1].data = Array(intradaySeries.length).fill(live.dma_used);
-      niftyChart.update('none');
-      document.getElementById('lbl_chart_dma').textContent = live.dma_used.toLocaleString('en-IN');
-      document.getElementById('lbl_chart_open').textContent = openPrice.toLocaleString('en-IN');
+    // Helper: update stat strip to the currently visible window after zoom/pan
+    function _onZoomOrPan(chart) {
+      if (!engineChartData || engineChartData.length === 0) return;
+      try {
+        const xScale = chart.scales['x'];
+        const minIdx = Math.max(0, Math.floor(xScale.min));
+        const maxIdx = Math.min(engineChartData.length - 1, Math.ceil(xScale.max));
+        const visible = engineChartData.slice(minIdx, maxIdx + 1);
+        updateEngineStats(visible);
+      } catch (e) { }
+    }
+
+    function updateEngineChart() { loadEngineChart(); }
+
+    function updateEngineStats(data) {
+      if (!data || data.length === 0) return;
+
+      // HWM — highest Nifty price across the visible window, track its date
+      let hwm = 0, hwmDate = '';
+      data.forEach(d => {
+        const p = d.nifty || 0;
+        if (p > hwm) { hwm = p; hwmDate = d.date; }
+      });
+
+      // Current DD — latest visible point vs HWM
+      const latest = data[data.length - 1];
+      const curDD = hwm > 0 ? ((latest.nifty - hwm) / hwm) * 100 : 0;
+
+      // Max DD — most negative drawdown value in the visible window
+      let maxDDVal = 0, maxDDDate = '';
+      data.forEach(d => {
+        const dd = d.drawdown != null ? d.drawdown : 0;
+        if (dd < maxDDVal) { maxDDVal = dd; maxDDDate = d.date; }
+      });
+
+      const ddColor = pct => {
+        const a = Math.abs(pct);
+        if (a >= 15) return 'var(--red)';
+        if (a >= 7) return 'var(--amber)';
+        return 'var(--green)';
+      };
+      const fmtDate = iso => {
+        if (!iso) return '';
+        const [y, m, d] = iso.split('-');
+        const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return d + ' ' + (mo[parseInt(m, 10) - 1] || m) + ' \'' + y.slice(2);
+      };
+
+      const hwmEl = document.getElementById('stat-hwm');
+      const hwmDateEl = document.getElementById('stat-hwm-date');
+      const curEl = document.getElementById('stat-cur-dd');
+      const maxEl = document.getElementById('stat-max-dd');
+      const maxDateEl = document.getElementById('stat-max-dd-date');
+
+      if (hwmEl) hwmEl.textContent = hwm > 0
+        ? hwm.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '—';
+      if (hwmDateEl) hwmDateEl.textContent = hwmDate
+        ? 'Reached ' + fmtDate(hwmDate) : 'Peak price in window';
+
+      if (curEl) {
+        curEl.textContent = curDD !== 0 ? curDD.toFixed(1) + '%' : '0.0%';
+        curEl.style.color = curDD < 0 ? ddColor(curDD) : 'var(--green)';
+      }
+      if (maxEl) {
+        maxEl.textContent = maxDDVal !== 0 ? maxDDVal.toFixed(1) + '%' : '0.0%';
+        maxEl.style.color = maxDDVal < 0 ? ddColor(maxDDVal) : 'var(--green)';
+      }
+      if (maxDateEl) {
+        maxDateEl.textContent = maxDDDate
+          ? 'Trough on ' + fmtDate(maxDDDate)
+          : 'Deepest trough in window';
+      }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -2645,14 +2936,13 @@
 
       // ── Lock Market Opening Baselines on First Data Load ──
       if (nifty && (!live.open || Object.keys(live.open).length === 0)) {
-        const niftySeries = buildIntradaySeries(nifty);
         live.open = {
-          nifty: niftySeries ? niftySeries.openPrice : nifty,
-          vix: vix ? Math.round(vix * 0.965 * 10) / 10 : vix,         // Calibrated session open proxy
+          nifty: nifty,    // use live close as open proxy (intraday sim removed)
+          vix: vix ? Math.round(vix * 0.965 * 10) / 10 : vix,
           usdinr: usdinr ? Math.round(usdinr * 0.9985 * 100) / 100 : usdinr,
           goldUSD: goldUSD ? Math.round(goldUSD * 0.9942) : goldUSD,
           brent: brent ? Math.round(brent * 0.9915 * 10) / 10 : brent,
-          goldINR: goldINR ? Math.round(goldINR * 0.9925) : goldINR
+          goldINR: goldINR ? Math.round(goldINR * 0.9925) : goldINR,
         };
       }
 
@@ -2665,7 +2955,7 @@
         setTile('vix', vix.toFixed(1), status, cls, null, changeArrow(vix, live.open.vix));
       }
 
-      // ── Nifty 50 (Perfectly aligned with Open label on the Intraday Structure card)
+      // ── Nifty 50
       if (nifty != null) {
         const aboveDma = dmaGap != null && dmaGap >= 0;
         setTile('nifty', nifty.toLocaleString('en-IN', { maximumFractionDigits: 0 }),
@@ -3206,7 +3496,7 @@
     updateTiles();
     updateSignals();
     updateVerdict();
-    initChart();
+    loadEngineChart();
 
 
 
