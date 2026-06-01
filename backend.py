@@ -90,7 +90,7 @@ def get_dynamic_jan1_baseline():
     except Exception:
         return 26329  # Hard fallback
 
-NIFTY_JAN1 = get_dynamic_jan1_baseline()
+NIFTY_JAN1 = 26329  # fallback seed — overwritten by startup_sequence() in background thread
 
 # ══════════════════════════════════════════════════════════════
 # DATABASE CONNECTION (REDIS)
@@ -610,14 +610,19 @@ def bootstrap_v3_state():
         traceback.print_exc()
         print(f"[Bootstrap] Failed — engine will self-correct over coming days: {e}")
 
-# Run bootstrap synchronously FIRST — blocks until complete so that
-# the first /api/v3_hedge call always sees a fully seeded state.
-# Only takes time on first boot or after a reset (peak_price == 0).
-# On normal restarts with healthy Redis state it returns in milliseconds.
-bootstrap_v3_state()
+def startup_sequence():
+    """Runs in background so gunicorn responds to /health immediately.
+    Order: Jan1 baseline -> bootstrap state -> live data loop (runs forever)."""
+    global NIFTY_JAN1
+    try:
+        NIFTY_JAN1 = get_dynamic_jan1_baseline()
+        print(f'[Startup] NIFTY_JAN1 set to {NIFTY_JAN1}')
+    except Exception as e:
+        print(f'[Startup] Jan1 baseline failed, using fallback: {e}')
+    bootstrap_v3_state()
+    update_cache_loop()   # loops forever
 
-# Background loop starts AFTER bootstrap is done
-threading.Thread(target=update_cache_loop, daemon=True).start()
+threading.Thread(target=startup_sequence, daemon=True).start()
 
 # ══════════════════════════════════════════════════════════════
 # HELPER: Build portfolio DataFrame from frontend payload
@@ -1007,6 +1012,92 @@ def get_v3_state_debug():
     try:
         state = load_v3_state()
         return jsonify({'status': 'success', 'state': state})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════
+# ADMIN ROUTES — PIN auth, FPI management, public FPI endpoint
+# ══════════════════════════════════════════════════════════════
+import secrets, hashlib
+
+ADMIN_PIN_HASH = hashlib.sha256(
+    os.environ.get('ADMIN_PIN', '1234').encode()
+).hexdigest()
+ADMIN_TOKEN_KEY = 'admin_token'
+
+def _make_token():
+    tok = secrets.token_hex(32)
+    save_state(ADMIN_TOKEN_KEY, tok)
+    return tok
+
+def _valid_token(req):
+    tok = req.headers.get('X-Admin-Token', '')
+    stored = get_state(ADMIN_TOKEN_KEY)
+    return bool(tok and stored and tok == stored)
+
+@app.route('/api/admin/auth', methods=['POST', 'OPTIONS'])
+def admin_auth():
+    if request.method == 'OPTIONS':
+        return '', 204
+    try:
+        pin = (request.json or {}).get('pin', '')
+        if hashlib.sha256(pin.encode()).hexdigest() == ADMIN_PIN_HASH:
+            token = _make_token()
+            return jsonify({'status': 'success', 'token': token})
+        return jsonify({'status': 'error', 'message': 'Invalid PIN.'}), 401
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/admin/fpi', methods=['GET', 'POST', 'OPTIONS'])
+def admin_fpi():
+    if request.method == 'OPTIONS':
+        return '', 204
+    if not _valid_token(request):
+        return jsonify({'status': 'error', 'message': 'Unauthorised.'}), 401
+    if request.method == 'GET':
+        try:
+            data = get_state('admin_fpi') or {}
+            return jsonify({'status': 'success', 'data': data})
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    # POST — save FPI values
+    try:
+        payload = request.json or {}
+        weekly = payload.get('weekly')
+        ytd    = payload.get('ytd')
+        if weekly is None:
+            return jsonify({'status': 'error', 'message': 'weekly is required'}), 400
+        fpi_data = {
+            'weekly'    : float(weekly),
+            'ytd'       : float(ytd) if ytd is not None else None,
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        }
+        save_state('admin_fpi', fpi_data)
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/admin/logout', methods=['POST', 'OPTIONS'])
+def admin_logout():
+    if request.method == 'OPTIONS':
+        return '', 204
+    save_state(ADMIN_TOKEN_KEY, '')
+    return jsonify({'status': 'success'})
+
+@app.route('/api/fpi_public', methods=['GET'])
+def fpi_public():
+    """Public endpoint — returns latest admin-set FPI for dashboard display."""
+    try:
+        data = get_state('admin_fpi') or {}
+        if not data:
+            return jsonify({'status': 'ok', 'weekly': None, 'ytd': None, 'updated_at': None})
+        return jsonify({
+            'status'    : 'ok',
+            'weekly'    : data.get('weekly'),
+            'ytd'       : data.get('ytd'),
+            'updated_at': data.get('updated_at'),
+        })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
