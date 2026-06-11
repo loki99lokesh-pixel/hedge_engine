@@ -1193,7 +1193,171 @@
       opacity: 0.7;
     }
 
-    /* ── Scorecard table ── */
+    /* ── Dual-Path Comparison Card ── */
+    .path-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 8px;
+    }
+
+    @media(max-width:700px) {
+      .path-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .path-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
+    }
+
+    .path-card.path-1 {
+      border-top: 3px solid var(--primary);
+    }
+
+    .path-card.path-2 {
+      border-top: 3px solid var(--green);
+    }
+
+    .path-card-head {
+      padding: 14px 18px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .path-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+
+    .path-1 .path-label {
+      color: var(--primary);
+    }
+
+    .path-2 .path-label {
+      color: var(--green);
+    }
+
+    .path-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .path-desc {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .path-body {
+      padding: 14px 18px;
+    }
+
+    .path-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .path-row:last-child {
+      border-bottom: none;
+    }
+
+    .path-row-label {
+      color: var(--muted);
+      min-width: 110px;
+      flex-shrink: 0;
+      font-size: 11px;
+    }
+
+    .path-row-val {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--text);
+      text-align: right;
+      font-size: 11px;
+    }
+
+    .path-row-val.highlight {
+      color: var(--amber);
+    }
+
+    .path-row-val.green {
+      color: var(--green);
+    }
+
+    .path-row-val.red {
+      color: var(--red);
+    }
+
+    .path-tradeoff {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: var(--r2);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .path-1 .path-tradeoff {
+      background: rgba(79, 142, 247, 0.08);
+      color: var(--muted2);
+      border: 1px solid rgba(79, 142, 247, 0.15);
+    }
+
+    .path-2 .path-tradeoff {
+      background: rgba(52, 211, 153, 0.08);
+      color: var(--muted2);
+      border: 1px solid rgba(52, 211, 153, 0.15);
+    }
+
+    .regime-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .regime-low {
+      background: rgba(52, 211, 153, 0.12);
+      color: var(--green);
+      border: 1px solid rgba(52, 211, 153, 0.25);
+    }
+
+    .regime-watch {
+      background: rgba(79, 142, 247, 0.12);
+      color: var(--primary);
+      border: 1px solid rgba(79, 142, 247, 0.25);
+    }
+
+    .regime-active {
+      background: rgba(251, 191, 36, 0.12);
+      color: var(--amber);
+      border: 1px solid rgba(251, 191, 36, 0.25);
+    }
+
+    .regime-crisis {
+      background: rgba(248, 113, 113, 0.12);
+      color: var(--red);
+      border: 1px solid rgba(248, 113, 113, 0.25);
+    }
+
+
     .score-table {
       width: 100%;
       border-collapse: collapse;
@@ -1497,11 +1661,127 @@
         </div>
       </div>
 
-      <!-- 5. Cost Summary — dedicated section -->
+      <!-- 5. Volatility Targeting — Two-Path Comparison (Harvey Ch.3 Vol Targeting adaptation) -->
+      <div class="section-head" id="pathCompSection" style="display:none;">Volatility Targeting — Two-Path Comparison
+        <span style="font-size:9px;color:var(--muted);font-weight:400;text-transform:none;">(Harvey Ch.3
+          adaptation)</span></div>
+      <div class="card" id="pathCompCard" style="display:none; padding: 20px 24px 24px;">
+        <div
+          style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+          <div>
+            <div style="font-size:13px; font-weight:600; color:var(--text); margin-bottom:4px;">Choose your hedging
+              approach based on your tax situation and rebalancing comfort.</div>
+            <div style="font-size:11px; color:var(--muted); line-height:1.5;">Both paths protect against the same
+              drawdown. The difference is <em>how</em> you get there.</div>
+          </div>
+          <div id="pathRegimeBadge" class="regime-badge regime-watch">Loading…</div>
+        </div>
+
+        <div class="path-grid">
+          <!-- Path 1 -->
+          <div class="path-card path-1">
+            <div class="path-card-head">
+              <div class="path-label">Path 1</div>
+              <div class="path-title">Hedge in Place</div>
+              <div class="path-desc">Keep your current allocation. Add derivative protection sized to your beta.</div>
+            </div>
+            <div class="path-body">
+              <div class="path-row">
+                <span class="path-row-label">Equity Exposure</span>
+                <span class="path-row-val" id="p1-equity">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">Portfolio Beta</span>
+                <span class="path-row-val" id="p1-beta">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">Put Allocation</span>
+                <span class="path-row-val highlight" id="p1-put">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">Monthly Drag</span>
+                <span class="path-row-val red" id="p1-drag">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">Action</span>
+                <span class="path-row-val" id="p1-action"
+                  style="font-family:var(--font-head); font-weight:500; font-size:11px; text-align:right;">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">Best For</span>
+                <span class="path-row-val" id="p1-bestfor"
+                  style="font-family:var(--font-head); font-weight:400; font-size:10px; text-align:right; color:var(--muted2);">—</span>
+              </div>
+              <div class="path-tradeoff" id="p1-tradeoff">—</div>
+            </div>
+          </div>
+
+          <!-- Path 2 -->
+          <div class="path-card path-2">
+            <div class="path-card-head">
+              <div class="path-label">Path 2</div>
+              <div class="path-title">Equity Reduction</div>
+              <div class="path-desc">Trim equity exposure first. Use a smaller hedge as a residual backstop.</div>
+            </div>
+            <div class="path-body">
+              <div class="path-row">
+                <span class="path-row-label">Equity Trim</span>
+                <span class="path-row-val red" id="p2-trim">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">New Equity %</span>
+                <span class="path-row-val" id="p2-equity">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">Effective Beta</span>
+                <span class="path-row-val green" id="p2-beta">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">Residual Put</span>
+                <span class="path-row-val highlight" id="p2-put">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">Put Drag / mo</span>
+                <span class="path-row-val" id="p2-putdrag">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">Opp. Cost / mo</span>
+                <span class="path-row-val" id="p2-oppcost">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">Total Drag / mo</span>
+                <span class="path-row-val red" id="p2-totaldrag">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">Action</span>
+                <span class="path-row-val" id="p2-action"
+                  style="font-family:var(--font-head); font-weight:500; font-size:11px; text-align:right;">—</span>
+              </div>
+              <div class="path-row">
+                <span class="path-row-label">Best For</span>
+                <span class="path-row-val" id="p2-bestfor"
+                  style="font-family:var(--font-head); font-weight:400; font-size:10px; text-align:right; color:var(--muted2);">—</span>
+              </div>
+              <div class="path-tradeoff" id="p2-tradeoff">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style="margin-top:14px; padding:10px 14px; background:var(--bg4); border-radius:var(--r2); font-size:10px; color:var(--muted); line-height:1.6;">
+          <strong style="color:var(--muted2);">Note:</strong> Path 2 adapts Harvey's continuous vol-scalar (base ×
+          target_vol / current_vol) to a regime-based step function
+          tied to your engine's existing VIX thresholds — avoiding daily rebalancing churn, STT, and capital gains
+          friction for retail Indian investors.
+          Opportunity cost assumes a conservative 1% per 10% equity trimmed per month.
+        </div>
+      </div>
+
+      <!-- 6. Cost Summary — dedicated section -->
       <div class="section-head">What Deploying Each Strategy Will Cost You</div>
       <div id="costSummarySection"></div>
 
-      <!-- 6. Full Scenario Table — How Each Hedge Offsets Your Loss -->
+      <!-- 7. Full Scenario Table — How Each Hedge Offsets Your Loss -->
       <div class="section-head">Full Scenario Table — How Each Hedge Offsets Your Loss</div>
       <div class="card" style="padding:0;overflow:hidden;">
         <div class="table-scroll" style="padding:0;">
@@ -1509,11 +1789,11 @@
         </div>
       </div>
 
-      <!-- 7. Playbook -->
+      <!-- 8. Playbook -->
       <div class="section-head">Your Personalised Playbook</div>
       <div class="playbook-grid" id="playbookGrid"></div>
 
-      <!-- 8. Downloads -->
+      <!-- 9. Downloads -->
       <div class="section-head">Export Reports</div>
       <div class="card">
         <div class="card-title">Download Your Analysis
@@ -1654,6 +1934,22 @@
     // STRATS and EPISODES must be defined before any function that references
     // them so the data is available when runAnalysis() fires.
     // ═══════════════════════════════════════════════════════════════
+
+    // ── Dynamic premium calculation (VIX-based) ─────────────────────────────
+    // ATM Put ≈ VIX/12 × 1.25   (annualised VIX → monthly, × ATM markup)
+    // OTM Put ≈ ATM × 0.60      (5% OTM is cheaper)
+    // Collar  ≈ ATM × 0.50      (call premium received offsets ~50% of put cost)
+    // S1/S6/S5/S4 stay static — not option premiums
+    function dynamicDrag(stratKey, vix) {
+      const v = vix || 20;
+      const atm = (v / 12) * 1.25;
+      switch (stratKey) {
+        case 'S2': return atm;
+        case 'S3': return atm * 0.60;
+        case 'S7': return atm * 0.50;
+        default: return null;  // use static drag for non-option strategies
+      }
+    }
 
     // Strategy order is S1 S2 S7 S3 S8 S6 S5 S4.
     // EPISODE_PNL keys use this same key string so lookup is never positional.
@@ -2074,18 +2370,21 @@
     </tr></thead>
     <tbody>${sorted.map((s, i) => {
         const adjAvg = s.betaScale ? s.avgPnl * portBeta : s.avgPnl;
-        const moDragPct = s.betaScale ? s.drag * portBeta : s.drag;          // % per month
+        const dynNow = dynamicDrag(s.key, window._liveVix);
+        const rawDrag = dynNow !== null ? dynNow : s.drag;
+        const moDragPct = s.betaScale ? rawDrag * portBeta : rawDrag;
         const yrDragPct = moDragPct * 12;
         const moDragINR = portValue ? portValue * moDragPct / 100 : null;
         const yrDragINR = portValue ? portValue * yrDragPct / 100 : null;
         const rank = i + 1;
         const badgeCls = rank <= 3 ? `rank-${rank}` : 'rank-n';
+        const isDynamic = dynNow !== null;
         const moCostStr = moDragINR
-          ? `<span style="font-size:10px;color:var(--amber);">${moDragPct.toFixed(2)}%</span><br><span style="color:var(--red);font-weight:700;">${fmtINR(moDragINR)}</span>`
-          : `<span>${moDragPct.toFixed(2)}%/mo</span>`;
+          ? `<span style="font-size:10px;color:var(--amber);">${moDragPct.toFixed(2)}%${isDynamic ? ' ⚡' : ''}</span><br><span style="color:var(--red);font-weight:700;">${fmtINR(moDragINR)}</span>`
+          : `<span>${moDragPct.toFixed(2)}%/mo${isDynamic ? ' ⚡' : ''}</span>`;
         const yrCostStr = yrDragINR
-          ? `<span style="font-size:10px;color:var(--amber);">${yrDragPct.toFixed(1)}%</span><br><span style="color:var(--red);font-weight:700;">${fmtINR(yrDragINR)}</span>`
-          : `<span>${yrDragPct.toFixed(1)}%/yr</span>`;
+          ? `<span style="font-size:10px;color:var(--amber);">${yrDragPct.toFixed(1)}%${isDynamic ? ' ⚡' : ''}</span><br><span style="color:var(--red);font-weight:700;">${fmtINR(yrDragINR)}</span>`
+          : `<span>${yrDragPct.toFixed(1)}%/yr${isDynamic ? ' ⚡' : ''}</span>`;
         return `<tr>
         <td><span class="rank-badge ${badgeCls}">${rank}</span>
             <span style="font-weight:500;margin-left:8px;">${s.name}</span></td>
@@ -2105,8 +2404,10 @@
 
         // Sort by monthly cost ascending (cheapest first) so the user can compare instantly
         const byCost = [...STRATS].sort((a, b) => {
-          const costA = (a.betaScale ? a.drag * portBeta : a.drag);
-          const costB = (b.betaScale ? b.drag * portBeta : b.drag);
+          const dA = dynamicDrag(a.key, window._liveVix); const rawA = dA !== null ? dA : a.drag;
+          const dB = dynamicDrag(b.key, window._liveVix); const rawB = dB !== null ? dB : b.drag;
+          const costA = (a.betaScale ? rawA * portBeta : rawA);
+          const costB = (b.betaScale ? rawB * portBeta : rawB);
           return costA - costB;
         });
 
@@ -2115,42 +2416,60 @@
         const priciest = byCost[byCost.length - 1];
         const stratB = STRATS.find(s => s.key === 'S2'); // ATM Put = canonical "Strategy B"
         const bestVal = [...STRATS].sort((a, b) => {
-          const ra = (a.betaScale ? a.avgPnl * portBeta : a.avgPnl) / Math.max((a.betaScale ? a.drag * 12 * portBeta : a.drag * 12), 0.01);
-          const rb = (b.betaScale ? b.avgPnl * portBeta : b.avgPnl) / Math.max((b.betaScale ? b.drag * 12 * portBeta : b.drag * 12), 0.01);
+          const dA = dynamicDrag(a.key, window._liveVix); const rA = dA !== null ? dA : a.drag;
+          const dB = dynamicDrag(b.key, window._liveVix); const rB = dB !== null ? dB : b.drag;
+          const ra = (a.betaScale ? a.avgPnl * portBeta : a.avgPnl) / Math.max((a.betaScale ? rA * 12 * portBeta : rA * 12), 0.01);
+          const rb = (b.betaScale ? b.avgPnl * portBeta : b.avgPnl) / Math.max((b.betaScale ? rB * 12 * portBeta : rB * 12), 0.01);
           return rb - ra;
         })[0];
 
         function costTile(label, strat, accentClass, icon) {
-          const moPct = strat.betaScale ? strat.drag * portBeta : strat.drag;
+          // Dynamic cost today
+          const dynToday = dynamicDrag(strat.key, window._liveVix);
+          const rawToday = dynToday !== null ? dynToday : strat.drag;
+          const moPct = strat.betaScale ? rawToday * portBeta : rawToday;
           const yrPct = moPct * 12;
           const moINR = portValue ? portValue * moPct / 100 : null;
           const yrINR = portValue ? portValue * yrPct / 100 : null;
+          // Dynamic cost at HWM (calm market VIX)
+          const hwmVix = window._vixAtHwm || 12;
+          const dynHwm = dynamicDrag(strat.key, hwmVix);
+          const rawHwm = dynHwm !== null ? dynHwm : strat.drag;
+          const moPctHwm = strat.betaScale ? rawHwm * portBeta : rawHwm;
+          const moINRHwm = portValue ? portValue * moPctHwm / 100 : null;
+          const isDynamic = dynToday !== null;
+          const costDiff = moPct - moPctHwm;
           return `
           <div class="tile ${accentClass}" style="display:flex;flex-direction:column;gap:6px;">
             <div class="tile-label">${icon} ${label}</div>
             <div style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--text);">${strat.name}</div>
-            <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-top:4px;">
+            <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-top:4px;">
               <div>
-                <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">Per Month</div>
-                <div style="font-family:var(--font-mono);font-weight:700;font-size:20px;color:var(--text);">${moPct.toFixed(2)}%</div>
-                ${moINR ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--red);font-weight:600;">${fmtINR(moINR)}</div>` : ''}
+                <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">Today${isDynamic ? ' ⚡' : ''}</div>
+                <div style="font-family:var(--font-mono);font-weight:700;font-size:20px;color:var(--text);">${moPct.toFixed(2)}%/mo</div>
+                ${moINR ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--red);font-weight:600;">${fmtINR(moINR)}/mo</div>` : ''}
+                <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:2px;">${yrPct.toFixed(1)}%/yr${yrINR ? ' · ' + fmtINR(yrINR) : ''}</div>
               </div>
-              <div>
-                <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">Per Year</div>
-                <div style="font-family:var(--font-mono);font-weight:700;font-size:20px;color:var(--text);">${yrPct.toFixed(1)}%</div>
-                ${yrINR ? `<div style="font-family:var(--font-mono);font-size:13px;color:var(--red);font-weight:600;">${fmtINR(yrINR)}</div>` : ''}
-              </div>
+              ${isDynamic ? `<div style="border-left:1px solid var(--border);padding-left:12px;">
+                <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:2px;">At HWM (VIX ${hwmVix.toFixed(0)})</div>
+                <div style="font-family:var(--font-mono);font-weight:600;font-size:16px;color:var(--green);">${moPctHwm.toFixed(2)}%/mo</div>
+                ${moINRHwm ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--green);">${fmtINR(moINRHwm)}/mo</div>` : ''}
+                <div style="font-family:var(--font-mono);font-size:10px;color:${costDiff > 0 ? 'var(--red)' : 'var(--green)'};margin-top:4px;">${costDiff > 0 ? '▲' : '▼'} ${Math.abs(costDiff).toFixed(2)}% more costly now</div>
+              </div>` : ''}
             </div>
           </div>`;
         }
 
         // Build the full comparison table
         const tableRows = byCost.map((s, i) => {
-          const moPct = s.betaScale ? s.drag * portBeta : s.drag;
+          const dynToday2 = dynamicDrag(s.key, window._liveVix);
+          const rawToday2 = dynToday2 !== null ? dynToday2 : s.drag;
+          const moPct = s.betaScale ? rawToday2 * portBeta : rawToday2;
           const yrPct = moPct * 12;
           const moINR = portValue ? portValue * moPct / 100 : null;
           const yrINR = portValue ? portValue * yrPct / 100 : null;
           const adjAvg = s.betaScale ? s.avgPnl * portBeta : s.avgPnl;
+          const isDyn2 = dynToday2 !== null;
           // Gain-to-cost ratio: avg crash gain vs annual drag
           const ratio = yrPct > 0 ? (adjAvg / yrPct).toFixed(1) + '×' : '∞';
           const trigCls = s.trigger === 'a' ? 'trigger-a' : s.trigger === 'b' ? 'trigger-b' : 'trigger-c';
@@ -2307,7 +2626,7 @@
         footnote.style.cssText = 'padding:10px 16px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);background:var(--bg3);line-height:1.5;';
         scenarioCard.appendChild(footnote);
       }
-      footnote.innerHTML = `ⓘ <strong>Est. Cost</strong> = monthly drag × episode duration (calendar days ÷ 30). Actual option premiums vary with VIX — this is an approximation. &nbsp;|&nbsp; <strong>Net Gain</strong> = back-test net P&L (already after premium cost). &nbsp;|&nbsp; <strong>Port. Net</strong> = your portfolio loss + net hedge gain; green = hedge more than covered your loss.`;
+      footnote.innerHTML = `ⓘ <strong>Est. Cost</strong> = monthly drag × episode duration (calendar days ÷ 30). ⚡ = live VIX-based dynamic premium (VIX÷12×1.25). HWM cost uses VIX at market peak. &nbsp;|&nbsp; <strong>Net Gain</strong> = back-test net P&L (already after premium cost). &nbsp;|&nbsp; <strong>Port. Net</strong> = your portfolio loss + net hedge gain; green = hedge more than covered your loss.`;
 
       // ── Playbook — fetch v3.2 engine for this portfolio's beta ──
       // Uses the real magnitude engine (Stage 1 sigmoid + Stage 2 linear) with portfolio beta scaling.
@@ -2375,16 +2694,28 @@
         const v3Json = await v3Resp.json();
         if (v3Json.status === 'success') {
           const v3d = v3Json.data;
+          if (v3d.vix_at_hwm != null) window._vixAtHwm = v3d.vix_at_hwm;
+          if (v3d.vix_now != null) window._liveVix = v3d.vix_now;
           const STAGE_MAP = {
-            "Stage 1 — Onset": { label: "Stage 1 — Early Warning", desc: "Volatility & FPI flows elevated. Pre-emptive hedge building." },
-            "Stage 2 — Active Phase": { label: "Stage 2 — Active Drawdown", desc: "Confirmed drawdown in progress. Linear scaling active." },
-            "Stage 3: Escalated (MAJOR minimum)": { label: "Stage 3 — Major Crash Floor", desc: "Drawdown ≥20%. Minimum 75% hedge enforced." },
-            "Stage 3: Escalated (SEVERE)": { label: "Stage 3 — Severe Crisis", desc: "Drawdown ≥15% + VIX spiking. Full 100% hedge." },
-            "Stage 3: Escalated (SEVERE unconditional)": { label: "Stage 3 — Full Hedge", desc: "Drawdown ≥25%. 100% hedge unconditional." },
-            "Stage 3: De-escalation Blocked (Gate closed)": { label: "Stage 3 — Holding (Gate Closed)", "desc": "Recovery incomplete. Hedge maintained at prior level." },
+            "Stage 1 — Onset": { label: "⚡ Stage 1 — Early Warning", desc: "Volatility & FPI flows elevated. Pre-emptive hedge building." },
+            "Stage 2 — Active Phase": { label: "⚠️ Stage 2 — Active Drawdown", desc: "Confirmed drawdown in progress. Linear scaling active." },
+            "Stage 3: Escalated (MAJOR minimum)": { label: "🔴 Stage 3 — Major Crash Floor", desc: "Drawdown ≥20%. Minimum 75% hedge enforced." },
+            "Stage 3: Escalated (SEVERE)": { label: "🔴 Stage 3 — Severe Crisis", desc: "Drawdown ≥15% + VIX spiking. Full 100% hedge." },
+            "Stage 3: Escalated (SEVERE unconditional)": { label: "🔴 Stage 3 — Full Hedge", desc: "Drawdown ≥25%. 100% hedge unconditional." },
           };
           const si = STAGE_MAP[v3d.active_stage] || { label: v3d.active_stage, desc: "" };
-          await renderPlaybook(Math.round(v3d.beta_adjusted_target), si.label, si.desc);
+          // Append gate lock indicator if active
+          let stageDesc = si.desc;
+          if (v3d.diagnostics && v3d.diagnostics.gate_locked) {
+            const rr = ((v3d.diagnostics.recovery_ratio || 0) * 100).toFixed(0);
+            const lvd = v3d.diagnostics.low_vol_days || 0;
+            stageDesc += ' <span style="display:inline-block;margin-top:6px;padding:4px 10px;border-radius:4px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);color:#D97706;font-size:11px;font-weight:600;">'
+              + '🔒 Gate Lock: hedge held at ' + v3d.diagnostics.gate_prev_hedge + '% | Recovery ' + rr + '%/40% | Low-vol days ' + lvd + '/5'
+              + '</span>';
+          }
+          await renderPlaybook(Math.round(v3d.beta_adjusted_target), si.label, stageDesc);
+          // Render dual-path comparison using live VIX from engine response
+          renderPathComparison(portBeta, v3d.vix_now || 18.5, v3d.inputs_used?.dd_from_peak_pct || 0, equityPct, portValue);
           return;
         }
       } catch (_) { }
@@ -2395,6 +2726,72 @@
         12.5 + 0.52 * liveVix + 0.48 * liveDDSignal + 5.10 * (liveVix * liveDDSignal / 100)
       )));
       await renderPlaybook(fallbackAlloc, "v3.2 Engine Offline", "Using Stage 2 equation fallback.");
+      renderPathComparison(portBeta, liveVix, liveDDSignal, equityPct, portValue);
+    }
+
+    function renderPathComparison(portBeta, vix, ddPct, equityPct, portValue) {
+      // ── Determine regime ───────────────────────────────────────────
+      let regime, equityTrim, p2HedgePct, urgency, regimeAction;
+      if (vix < 15) {
+        regime = "Stage 1 — Low Volatility"; equityTrim = 0; p2HedgePct = 10;
+        urgency = "low"; regimeAction = "Hold equity, no change needed";
+      } else if (vix < 20) {
+        regime = "Stage 1 — Elevated"; equityTrim = 10; p2HedgePct = 15;
+        urgency = "watch"; regimeAction = "Trim equity by ~10%, add lighter put as residual";
+      } else if (vix < 28) {
+        regime = "Stage 2 — Active Drawdown"; equityTrim = 20; p2HedgePct = 20;
+        urgency = "active"; regimeAction = "Trim equity by ~20%, smaller put as backstop";
+      } else {
+        regime = "Stage 3 — Crisis"; equityTrim = 35; p2HedgePct = 10;
+        urgency = "crisis"; regimeAction = "Full equity reduction, minimal put as residual backstop";
+      }
+
+      // ── Path 1 ────────────────────────────────────────────────────
+      const ddAbs = Math.abs(ddPct);
+      const p1HedgeRaw = 12.5 + 0.52 * vix + 0.48 * ddAbs + 5.10 * (vix * ddAbs / 100);
+      const p1HedgePct = Math.min(100, Math.max(10, Math.round(p1HedgeRaw)));
+      const p1MonthlyDrag = (p1HedgePct * 0.012).toFixed(2);
+
+      // ── Path 2 ────────────────────────────────────────────────────
+      const newEquityPct = Math.max(0, equityPct - equityTrim).toFixed(1);
+      const effBetaP2 = (portBeta * (parseFloat(newEquityPct) / Math.max(equityPct, 1))).toFixed(3);
+      const p2MonthlyDrag = (p2HedgePct * 0.012).toFixed(2);
+      const p2OppCost = (equityTrim * 0.10).toFixed(2);
+      const p2TotalDrag = (parseFloat(p2MonthlyDrag) + parseFloat(p2OppCost)).toFixed(2);
+
+      // ── INR helpers ───────────────────────────────────────────────
+      const pv = portValue;
+      const inrStr = (pct) => pv ? ` (${fmtINR(pv * pct / 100)})` : '';
+
+      // ── Regime badge ──────────────────────────────────────────────
+      const badgeCls = { low: 'regime-low', watch: 'regime-watch', active: 'regime-active', crisis: 'regime-crisis' }[urgency];
+      document.getElementById('pathRegimeBadge').className = `regime-badge ${badgeCls}`;
+      document.getElementById('pathRegimeBadge').textContent = regime;
+
+      // ── Populate Path 1 ───────────────────────────────────────────
+      document.getElementById('p1-equity').textContent = equityPct.toFixed(1) + '% (unchanged)';
+      document.getElementById('p1-beta').textContent = portBeta.toFixed(3) + ' (unchanged)';
+      document.getElementById('p1-put').textContent = p1HedgePct + '% notional' + inrStr(p1HedgePct);
+      document.getElementById('p1-drag').textContent = '~' + p1MonthlyDrag + '%' + inrStr(parseFloat(p1MonthlyDrag));
+      document.getElementById('p1-action').textContent = `Buy ATM puts at ${p1HedgePct}% notional. Equity unchanged.`;
+      document.getElementById('p1-bestfor').textContent = 'Investors who cannot or prefer not to sell equity (tax, lock-in, conviction).';
+      document.getElementById('p1-tradeoff').textContent = '⚖ Trade-off: Higher put premium. Full equity upside retained if hedge is wrong.';
+
+      // ── Populate Path 2 ───────────────────────────────────────────
+      document.getElementById('p2-trim').textContent = equityTrim > 0 ? `-${equityTrim}%` + inrStr(equityTrim) : 'No trim needed';
+      document.getElementById('p2-equity').textContent = newEquityPct + '%';
+      document.getElementById('p2-beta').textContent = effBetaP2 + ' (reduced)';
+      document.getElementById('p2-put').textContent = p2HedgePct + '% notional' + inrStr(p2HedgePct);
+      document.getElementById('p2-putdrag').textContent = '~' + p2MonthlyDrag + '%';
+      document.getElementById('p2-oppcost').textContent = '~' + p2OppCost + '% (equity upside forgone)';
+      document.getElementById('p2-totaldrag').textContent = '~' + p2TotalDrag + '%';
+      document.getElementById('p2-action').textContent = regimeAction;
+      document.getElementById('p2-bestfor').textContent = 'Investors comfortable rebalancing who want lower derivative exposure.';
+      document.getElementById('p2-tradeoff').textContent = '⚖ Trade-off: Misses rally if VIX spike is a false alarm. Lower put premium cost.';
+
+      // Show the card
+      document.getElementById('pathCompSection').style.display = '';
+      document.getElementById('pathCompCard').style.display = '';
     }
 
     function showError(msg) {
@@ -2538,8 +2935,9 @@
 
     // Fetch live VIX and DMA gap from the backend cache so the playbook
     // model allocation uses real market data rather than static trigger values.
-    window._liveVix = 20;   // fallback
-    window._liveDDSignal = 2;   // fallback
+    window._liveVix = 20;   // fallback — overwritten by /api/live
+    window._vixAtHwm = null; // VIX at HWM date — overwritten by /api/v3_hedge
+    window._liveDDSignal = 2;  // fallback
     (async () => {
       try {
         const resp = await fetch('/api/live', { cache: 'no-cache' });
