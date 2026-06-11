@@ -749,6 +749,85 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
     #    c2.font = Font(name="Calibri", size=10,
     #                   color="2E7D32" if beta < 0 else ("1565C0" if beta < 0.1 else "000000"))
 
+    # ── Sheet 5: Dual-Path Comparison (Harvey Ch.3) ──────────────
+    ws5 = wb.create_sheet("5_Vol Targeting Paths")
+    ws5.column_dimensions["A"].width = 32
+    ws5.column_dimensions["B"].width = 38
+    ws5.column_dimensions["C"].width = 38
+
+    # Title
+    ws5.merge_cells("A1:C1")
+    t5 = ws5["A1"]
+    t5.value = "VOLATILITY TARGETING — TWO-PATH COMPARISON  (Harvey Ch.3)"
+    t5.font  = Font(name="Calibri", bold=True, size=13, color="1E3A5F")
+    t5.alignment = Alignment(horizontal="left", vertical="center")
+    ws5.row_dimensions[1].height = 28
+
+    # Use neutral seeds if no live data context available
+    _vix_e  = 18.5
+    _dd_e   = 0.0
+    eq_wt_e = metrics.get("equity_weight", 60.0)
+    _pe     = compute_equity_reduction_path(
+        metrics["portfolio_beta"], _vix_e, _dd_e, eq_wt_e, metrics["portfolio_value"]
+    )
+
+    # Column headers
+    for col, val in [(1, ""), (2, f"Path 1 — {_pe['p1_label']}"), (3, f"Path 2 — {_pe['p2_label']}")]:
+        c = ws5.cell(row=2, column=col, value=val)
+        _style_header(c, bg="1E3A5F" if col > 1 else "2E4A7A")
+        ws5.row_dimensions[2].height = 22
+
+    # Sub-descriptor row
+    ws5.cell(row=3, column=2, value=_pe["p1_descriptor"]).font = Font(name="Calibri", italic=True, size=9, color="444444")
+    ws5.cell(row=3, column=3, value=_pe["p2_descriptor"]).font = Font(name="Calibri", italic=True, size=9, color="444444")
+    ws5.row_dimensions[3].height = 18
+
+    pv5 = metrics["portfolio_value"]
+
+    def _e5(row, label, v1, v2, bold=False):
+        c0 = ws5.cell(row=row, column=1, value=label)
+        c0.font  = Font(name="Calibri", bold=True, size=10)
+        c0.fill  = PatternFill("solid", fgColor="F0F4FA")
+        c0.alignment = Alignment(vertical="center")
+        _border(c0)
+        for col, val in [(2, v1), (3, v2)]:
+            c = ws5.cell(row=row, column=col, value=val)
+            c.font  = Font(name="Calibri", size=10, bold=bold)
+            c.fill  = PatternFill("solid", fgColor="FFFFFF")
+            c.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+            _border(c)
+        ws5.row_dimensions[row].height = 20
+
+    p1_put_str = f"{_pe['p1_hedge_pct']:.0f}% of notional" + (f"  ({fmt_inr(pv5 * _pe['p1_hedge_pct'] / 100):.0f})" if pv5 else "")
+    p2_put_str = f"{_pe['p2_hedge_pct']:.0f}% of notional" + (f"  ({fmt_inr(pv5 * _pe['p2_hedge_pct'] / 100):.0f})" if pv5 else "")
+    p2_eq_str  = f"-{_pe['p2_equity_trim']:.0f}%  →  {_pe['p2_new_equity']:.1f}%" + (f"  (~{fmt_inr(pv5 * _pe['p2_equity_trim'] / 100)})" if pv5 else "")
+
+    rows5 = [
+        (4,  "Current Regime",      _pe["regime"],                         _pe["regime"],                        True),
+        (5,  "Equity Exposure",     f"{_pe['p1_equity_pct']:.1f}% (unchanged)", p2_eq_str,                      False),
+        (6,  "Portfolio Beta",      f"{_pe['p1_beta']:.3f} (unchanged)",   f"{_pe['p2_effective_beta']:.3f} (reduced)", False),
+        (7,  "Put / Hedge Size",    p1_put_str,                             p2_put_str,                           False),
+        (8,  "Monthly Put Drag",    f"~{_pe['p1_monthly_drag']:.2f}%",     f"~{_pe['p2_monthly_drag']:.2f}%",   False),
+        (9,  "Opp. Cost / month",   "None",                                 f"~{_pe['p2_opp_cost_monthly']:.2f}% (equity upside forgone)", False),
+        (10, "Total Monthly Cost",  f"~{_pe['p1_monthly_drag']:.2f}%",     f"~{_pe['p2_total_drag']:.2f}%",     True),
+        (11, "Action",              _pe["p1_action"],                       _pe["p2_action"],                     False),
+        (12, "Best For",            _pe["p1_best_for"],                     _pe["p2_best_for"],                   False),
+        (13, "Trade-off",           _pe["p1_tradeoff"],                     _pe["p2_tradeoff"],                   False),
+    ]
+    for r, label, v1, v2, bold in rows5:
+        _e5(r, label, v1, v2, bold)
+        ws5.row_dimensions[r].height = 28
+
+    # Note row
+    ws5.merge_cells("A15:C15")
+    note_c = ws5["A15"]
+    note_c.value = ("NOTE: Path 2 adapts Harvey's continuous vol-scalar to a regime-based step function "
+                    "tied to VIX thresholds — avoiding daily churn, STT, and capital gains friction for "
+                    "retail Indian investors. Choose the path that matches your tax situation and rebalancing comfort.")
+    note_c.font      = Font(name="Calibri", italic=True, size=9, color="666666")
+    note_c.alignment = Alignment(wrap_text=True, vertical="center")
+    ws5.row_dimensions[15].height = 40
+
     wb.save(output_path)
     print(f"  Excel saved: {output_path}")
 
@@ -853,7 +932,7 @@ def generate_text_report(metrics, hedge_sizing, scenario_df, output_path, live_n
         "  Stage 1 — Early Warning (Sigmoid Onset)",
         "    Fires when volatility (RV/VIX) and FPI outflows are elevated.",
         "    Uses a sigmoid curve so the hedge builds gradually, not in jumps.",
-        "    Equation: Score = 0.48·RV + 0.25·DMA-Gap + 0.10·FPI + 0.17·VIX",
+        "    Equation: Score = 0.48·RV + 0.25·DMA-Gap + 0.15·FPI + 0.12·VIX",
         "",
         "  Stage 2 — Active Drawdown (Linear Interaction)",
         "    Fires once a confirmed peak-to-trough drawdown is underway.",
@@ -890,6 +969,57 @@ def generate_text_report(metrics, hedge_sizing, scenario_df, output_path, live_n
         f"    Short Nifty Futures covering {pb*100:.0f}% notional.",
         "    Combine with Strategy B collars to reduce premium cost.",
         "    Never exceed 75% notional in short futures.",
+        "",
+    ]
+
+    # ── Dual-Path Comparison (Harvey Ch.3 Vol Targeting) ─────────────────────
+    _vix_for_path = 18.5
+    _dd_for_path  = 0.0
+    if live_nifty:
+        _vix_for_path = live_nifty.get('vix', 18.5)
+        _dd_for_path  = live_nifty.get('gap_pct', 0.0)
+
+    eq_wt  = metrics.get('equity_weight', 60.0)
+    _path  = compute_equity_reduction_path(pb, _vix_for_path, _dd_for_path, eq_wt, pv)
+
+    lines += [
+        "═" * 68,
+        "VOLATILITY TARGETING — TWO-PATH COMPARISON  (Harvey Ch.3)",
+        "═" * 68,
+        f"  Current Regime : {_path['regime']}",
+        f"  VIX            : {_path['vix']:.1f}  |  DD from Peak: {_path['dd_pct']:.1f}%",
+        "",
+        f"  PATH 1 — {_path['p1_label']}",
+        f"  {_path['p1_descriptor']}",
+        "  ─────────────────────────────────────────────────",
+        f"  Equity Exposure  : {_path['p1_equity_pct']:.1f}% (unchanged)",
+        f"  Portfolio Beta   : {_path['p1_beta']:.3f} (unchanged)",
+        f"  Put Allocation   : {_path['p1_hedge_pct']:.0f}% of notional"
+        + (f"  ({fmt_inr(_path.get('p1_put_notional_inr'))})" if pv and 'p1_put_notional_inr' in _path else ""),
+        f"  Monthly Drag     : ~{_path['p1_monthly_drag']:.2f}%"
+        + (f"  ({fmt_inr(_path.get('p1_monthly_drag_inr'))})" if pv and 'p1_monthly_drag_inr' in _path else ""),
+        f"  Action           : {_path['p1_action']}",
+        f"  Best For         : {_path['p1_best_for']}",
+        f"  Trade-off        : {_path['p1_tradeoff']}",
+        "",
+        f"  PATH 2 — {_path['p2_label']}",
+        f"  {_path['p2_descriptor']}",
+        "  ─────────────────────────────────────────────────",
+        f"  Equity Trim      : -{_path['p2_equity_trim']:.0f}% from {eq_wt:.1f}%  →  {_path['p2_new_equity']:.1f}%"
+        + (f"  (sell approx. {fmt_inr(_path.get('p2_equity_sell_inr'))})" if pv and 'p2_equity_sell_inr' in _path else ""),
+        f"  Effective Beta   : {_path['p2_effective_beta']:.3f} (reduced from {pb:.3f})",
+        f"  Residual Put     : {_path['p2_hedge_pct']:.0f}% of notional"
+        + (f"  ({fmt_inr(_path.get('p2_put_notional_inr'))})" if pv and 'p2_put_notional_inr' in _path else ""),
+        f"  Put Drag/month   : ~{_path['p2_monthly_drag']:.2f}%",
+        f"  Opp. Cost/month  : ~{_path['p2_opp_cost_monthly']:.2f}%  (forgone equity upside)",
+        f"  Total Drag/month : ~{_path['p2_total_drag']:.2f}%",
+        f"  Action           : {_path['p2_action']}",
+        f"  Best For         : {_path['p2_best_for']}",
+        f"  Trade-off        : {_path['p2_tradeoff']}",
+        "",
+        "  NOTE: Path 2 is adapted from Harvey's continuous vol-scalar to a regime-based",
+        "  step function tied to VIX thresholds — avoiding daily rebalancing churn,",
+        "  STT, and capital gains friction for retail Indian investors.",
         "",
         "═" * 68,
         "CAVEATS",
@@ -1018,11 +1148,61 @@ def generate_docx_report(metrics, hedge_sizing, scenario_df, output_path, live_n
         'Combine with collars to reduce cost. Never exceed 75% notional short.'
     )
 
+    # 7. Dual-Path Comparison (Harvey Ch.3)
+    _vix_w  = live_nifty.get('vix', 18.5)    if live_nifty else 18.5
+    _dd_w   = live_nifty.get('gap_pct', 0.0) if live_nifty else 0.0
+    eq_wt_w = metrics.get('equity_weight', 60.0)
+    _pw     = compute_equity_reduction_path(pb, _vix_w, _dd_w, eq_wt_w, pv)
+
+    doc.add_heading('VOLATILITY TARGETING — TWO-PATH COMPARISON  (Harvey Ch.3)', level=1)
+    p_regime = doc.add_paragraph()
+    p_regime.add_run(f"Current Regime: {_pw['regime']}  |  VIX: {_pw['vix']:.1f}  |  DD from Peak: {_pw['dd_pct']:.1f}%\n")
+
+    doc.add_heading(f"Path 1 — {_pw['p1_label']}", level=2)
+    p_p1 = doc.add_paragraph()
+    p_p1.add_run(f"{_pw['p1_descriptor']}\n")
+    p_p1.add_run(f"Equity Exposure  : {_pw['p1_equity_pct']:.1f}% (unchanged)\n")
+    p_p1.add_run(f"Portfolio Beta   : {_pw['p1_beta']:.3f} (unchanged)\n")
+    put_str = f"Put Allocation   : {_pw['p1_hedge_pct']:.0f}% of notional"
+    if pv and 'p1_put_notional_inr' in _pw:
+        put_str += f"  ({local_fmt_inr(_pw['p1_put_notional_inr'])})"
+    p_p1.add_run(f"{put_str}\n")
+    drag_str1 = f"Monthly Drag     : ~{_pw['p1_monthly_drag']:.2f}%"
+    if pv and 'p1_monthly_drag_inr' in _pw:
+        drag_str1 += f"  ({local_fmt_inr(_pw['p1_monthly_drag_inr'])})"
+    p_p1.add_run(f"{drag_str1}\n")
+    p_p1.add_run(f"Best For         : {_pw['p1_best_for']}\n")
+    p_p1.add_run(f"Trade-off        : {_pw['p1_tradeoff']}\n")
+
+    doc.add_heading(f"Path 2 — {_pw['p2_label']}", level=2)
+    p_p2 = doc.add_paragraph()
+    p_p2.add_run(f"{_pw['p2_descriptor']}\n")
+    eq_str = f"Equity Trim      : -{_pw['p2_equity_trim']:.0f}% from {eq_wt_w:.1f}%  →  {_pw['p2_new_equity']:.1f}%"
+    if pv and 'p2_equity_sell_inr' in _pw:
+        eq_str += f"  (sell approx. {local_fmt_inr(_pw['p2_equity_sell_inr'])})"
+    p_p2.add_run(f"{eq_str}\n")
+    p_p2.add_run(f"Effective Beta   : {_pw['p2_effective_beta']:.3f} (reduced from {pb:.3f})\n")
+    res_str = f"Residual Put     : {_pw['p2_hedge_pct']:.0f}% of notional"
+    if pv and 'p2_put_notional_inr' in _pw:
+        res_str += f"  ({local_fmt_inr(_pw['p2_put_notional_inr'])})"
+    p_p2.add_run(f"{res_str}\n")
+    p_p2.add_run(f"Put Drag/month   : ~{_pw['p2_monthly_drag']:.2f}%\n")
+    p_p2.add_run(f"Opp. Cost/month  : ~{_pw['p2_opp_cost_monthly']:.2f}%  (forgone equity upside)\n")
+    p_p2.add_run(f"Total Drag/month : ~{_pw['p2_total_drag']:.2f}%\n")
+    p_p2.add_run(f"Best For         : {_pw['p2_best_for']}\n")
+    p_p2.add_run(f"Trade-off        : {_pw['p2_tradeoff']}\n")
+
+    p_note = doc.add_paragraph()
+    p_note.add_run(
+        "NOTE: Path 2 is adapted from Harvey's continuous vol-scalar (base × target_vol / current_vol) "
+        "to a regime-based step function tied to VIX thresholds — avoiding daily rebalancing churn, "
+        "STT, and capital gains friction for retail Indian investors."
+    ).italic = True
+
     doc.save(output_path)
 
 
-# ══════════════════════════════════════════════════════════════
-# MAIN
+
 # ══════════════════════════════════════════════════════════════
 def main():
     parser = argparse.ArgumentParser(description="Portfolio Hedge Engine v2.0")
@@ -1095,6 +1275,113 @@ def norm_fpi(fpi):
         return min(100.0, (-fpi) / 8000.0 * 100.0) # Outflow
     else:
         return max(-50.0, (-fpi) / 8000.0 * 100.0) # Inflow
+
+def compute_equity_reduction_path(portfolio_beta: float, vix: float, dd_pct: float,
+                                   equity_weight_pct: float, portfolio_value: float = None) -> dict:
+    """
+    Computes the Harvey Ch.3 Vol-Targeting Path 2 recommendation:
+    Regime-based equity reduction + residual hedge sizing.
+
+    Rather than the continuous daily scalar (base × target_vol / current_vol),
+    which causes weekly churn and tax friction for retail investors, this uses
+    the same VIX thresholds already established in the v3.2 engine.
+
+    Regime table (aligned with engine stage boundaries):
+      VIX < 15   → Stage 1 low    : Hold equity, no change
+      VIX 15-20  → Stage 1 elevated: Trim equity ~10%, lighter put
+      VIX 20-28  → Stage 2        : Trim equity ~20%, smaller put
+      VIX > 28   → Stage 3        : Full equity reduction + minimal put
+
+    Returns a dict with both Path 1 (current) and Path 2 (equity reduction)
+    side-by-side for comparison in dashboard and reports.
+    """
+    # ── Determine regime ──────────────────────────────────────────────────────
+    if vix < 15:
+        regime          = "Stage 1 — Low Volatility"
+        equity_trim_pct = 0.0
+        p2_hedge_pct    = 10.0   # minimal residual backstop
+        regime_action   = "Hold equity, no change needed"
+        urgency         = "low"
+    elif vix < 20:
+        regime          = "Stage 1 — Elevated Volatility"
+        equity_trim_pct = 10.0
+        p2_hedge_pct    = 15.0   # lighter put since equity already trimmed
+        regime_action   = "Trim equity by ~10%, add lighter put as residual"
+        urgency         = "watch"
+    elif vix < 28:
+        regime          = "Stage 2 — Active Drawdown"
+        equity_trim_pct = 20.0
+        p2_hedge_pct    = 20.0   # smaller put, equity reduction does the heavy lifting
+        regime_action   = "Trim equity by ~20%, smaller put as backstop"
+        urgency         = "active"
+    else:
+        regime          = "Stage 3 — Crisis"
+        equity_trim_pct = 35.0
+        p2_hedge_pct    = 10.0   # minimal put, equity reduction is primary action
+        regime_action   = "Full equity reduction, minimal put as residual backstop"
+        urgency         = "crisis"
+
+    # ── Path 1 — current engine (Hedge in Place) ─────────────────────────────
+    # Simple linear estimate of put allocation from VIX + dd_pct
+    dd_abs = abs(dd_pct)
+    p1_hedge_raw = 12.5 + 0.52 * vix + 0.48 * dd_abs + 5.10 * (vix * dd_abs / 100.0)
+    p1_hedge_pct = round(min(100.0, max(10.0, p1_hedge_raw)), 1)
+    p1_monthly_drag = round(p1_hedge_pct * 0.012, 2)   # ~1.2% per 1% put allocation / month
+    p1_net_equity_exp = round(equity_weight_pct, 1)     # unchanged
+
+    # ── Path 2 — equity reduction + residual put ─────────────────────────────
+    new_equity_pct    = round(max(0.0, equity_weight_pct - equity_trim_pct), 1)
+    effective_beta_p2 = round(portfolio_beta * (new_equity_pct / max(equity_weight_pct, 1.0)), 3)
+    p2_monthly_drag   = round(p2_hedge_pct * 0.012, 2)
+
+    # Combined drag: put cost + implicit opportunity cost of reduced equity exposure
+    # Opportunity cost proxy: 1% per 10% equity trimmed (conservative bull-mkt assumption)
+    p2_opportunity_cost = round(equity_trim_pct * 0.10, 2)  # per month, annualise ×12 for report
+    p2_total_drag_monthly = round(p2_monthly_drag + p2_opportunity_cost, 2)
+
+    result = {
+        # Regime context
+        "vix"            : round(vix, 1),
+        "dd_pct"         : round(dd_pct, 2),
+        "regime"         : regime,
+        "urgency"        : urgency,
+
+        # Path 1 — Hedge in Place
+        "p1_label"       : "Hedge in Place",
+        "p1_descriptor"  : "Keep your current allocation. Add derivative protection sized to your beta.",
+        "p1_hedge_pct"   : p1_hedge_pct,
+        "p1_equity_pct"  : p1_net_equity_exp,
+        "p1_beta"        : round(portfolio_beta, 3),
+        "p1_monthly_drag": p1_monthly_drag,
+        "p1_action"      : f"Buy ATM puts at {p1_hedge_pct:.0f}% notional. Equity unchanged.",
+        "p1_best_for"    : "Investors who cannot or prefer not to sell equity (tax, lock-in, conviction).",
+        "p1_tradeoff"    : "Higher put premium. Full equity upside retained if hedge is wrong.",
+
+        # Path 2 — Equity Reduction
+        "p2_label"       : "Equity Reduction",
+        "p2_descriptor"  : "Trim equity exposure first. Use a smaller hedge as a residual backstop.",
+        "p2_equity_trim" : equity_trim_pct,
+        "p2_new_equity"  : new_equity_pct,
+        "p2_hedge_pct"   : p2_hedge_pct,
+        "p2_effective_beta": effective_beta_p2,
+        "p2_monthly_drag": p2_monthly_drag,
+        "p2_opp_cost_monthly": p2_opportunity_cost,
+        "p2_total_drag"  : p2_total_drag_monthly,
+        "p2_action"      : regime_action,
+        "p2_best_for"    : "Investors comfortable rebalancing and who want lower derivative exposure.",
+        "p2_tradeoff"    : "Misses rally if VIX spike is a false alarm. Lower put cost.",
+    }
+
+    # ── Optional ₹ outputs ────────────────────────────────────────────────────
+    if portfolio_value:
+        result["p1_put_notional_inr"]   = round(portfolio_value * p1_hedge_pct / 100, 0)
+        result["p1_monthly_drag_inr"]   = round(portfolio_value * p1_monthly_drag / 100, 0)
+        result["p2_equity_sell_inr"]    = round(portfolio_value * equity_trim_pct / 100, 0)
+        result["p2_put_notional_inr"]   = round(portfolio_value * p2_hedge_pct / 100, 0)
+        result["p2_monthly_drag_inr"]   = round(portfolio_value * p2_monthly_drag / 100, 0)
+
+    return result
+
 
 def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, state, ret_5d,
                                   new_calendar_day=True):
@@ -1208,8 +1495,9 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
             gate_cleared = (cleared_by_price or cleared_by_vol) and (days_in_dd >= 3)
             
             if not gate_cleared:
-                final_target = incoming_prev_hedge  
-                active_stage = "Stage 3: De-escalation Blocked (Gate closed)"
+                final_target = incoming_prev_hedge
+                # Do NOT override active_stage — market conditions determine stage
+                # Gate lock is surfaced separately via diagnostics
 
     new_prev_hedge = max(incoming_prev_hedge, final_target) if dd_pct > 0 else 0.0
 
@@ -1227,12 +1515,26 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
         'sod_recovery_ratio': sod_recovery_ratio  # Added to state
     }
 
+    # Compute gate_locked flag for diagnostics
+    _gate_active = (
+        incoming_prev_hedge > gate_threshold_check
+        and sod_dd_pct >= 2.0
+        and "Stage 3" not in active_stage
+    )
+    _gate_locked = _gate_active and not (
+        (sod_recovery_ratio >= 0.40 or low_vol_days >= 5) and days_in_dd >= 3
+    )
+
     diagnostics = {
-        'onset_score': round(onset_score, 1),
-        's1_target': round(s1_target, 1),
-        's2_penalty': round(penalty, 1),
-        's2_target': round(s2_target, 1),
-        'current_dd': round(dd_pct, 2)
+        'onset_score'     : round(onset_score, 1),
+        's1_target'       : round(s1_target, 1),
+        's2_penalty'      : round(penalty, 1),
+        's2_target'       : round(s2_target, 1),
+        'current_dd'      : round(dd_pct, 2),
+        'gate_locked'     : _gate_locked,
+        'gate_prev_hedge' : round(incoming_prev_hedge, 1),
+        'recovery_ratio'  : round(sod_recovery_ratio, 3),
+        'low_vol_days'    : low_vol_days,
     }
 
     return final_target, active_stage, diagnostics, new_state
