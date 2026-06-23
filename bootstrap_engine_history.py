@@ -152,36 +152,31 @@ def _run_engine_day(vix, rv20d, fpi_net, gap_pct, current_price,
             final_target = 100.0
             active_stage = "Stage 3: Escalated (SEVERE unconditional)"
 
-    # 6. De-escalation gate
-    low_vol_days = state.get('low_vol_days', 0)
-    if new_calendar_day:
-        low_vol_days = low_vol_days + 1 if (rv20d < 22 and vix < 20) else 0
-
+    # 6. De-escalation: decay-based ratchet
     incoming_prev_hedge = state.get('prev_hedge', 0)
     if dd_pct == 0:
         incoming_prev_hedge = 0
-        low_vol_days        = 0
         days_in_dd          = 0
 
-    final_target       = round(final_target, 1)
-    gate_threshold_check = sod_natural_target + sod_buffer
+    final_target = round(final_target, 1)
 
-    if incoming_prev_hedge > gate_threshold_check and "Stage 3" not in active_stage:
-        if sod_dd_pct >= 2.0:
-            cleared_by_price = sod_recovery_ratio >= 0.40
-            cleared_by_vol   = low_vol_days >= 5
-            gate_cleared     = (cleared_by_price or cleared_by_vol) and days_in_dd >= 3
-            if not gate_cleared:
-                final_target = incoming_prev_hedge
-                active_stage = "Stage 3: De-escalation Blocked (Gate closed)"
+    if dd_pct == 0:
+        new_prev_hedge = 0.0
+    elif final_target > incoming_prev_hedge:
+        new_prev_hedge = final_target
+    else:
+        decay = 0.30 * (incoming_prev_hedge - s1_target)
+        new_prev_hedge = max(incoming_prev_hedge - decay, s1_target)
+        if (new_prev_hedge - s1_target) <= sod_buffer:
+            new_prev_hedge = s1_target
 
-    new_prev_hedge = max(incoming_prev_hedge, final_target) if dd_pct > 0 else 0.0
+    if dd_pct > 0:
+        final_target = max(final_target, new_prev_hedge)
 
     new_state = {
         'peak_price'         : peak,
         'trough_price'       : trough,
         'days_in_dd'         : days_in_dd,
-        'low_vol_days'       : low_vol_days,
         'prev_hedge'         : new_prev_hedge,
         'ema_vix'            : vix,
         'sod_dd_pct'         : sod_dd_pct,
@@ -201,7 +196,7 @@ def _parse_dates(series):
                 return parsed
         except Exception:
             continue
-    return pd.to_datetime(series, infer_datetime_format=True, errors='coerce')
+    return pd.to_datetime(series, errors='coerce')
 
 
 # ── Checkpoint helpers ───────────────────────────────────────────────────────
@@ -213,7 +208,7 @@ def load_checkpoint():
             data = json.load(f)
         if data.get('trough_price', 0) >= 1e14:
             data['trough_price'] = float('inf')
-        print(f"[Checkpoint] Loaded — last date: {data.get('last_date', '?')}")
+        print(f"[Checkpoint] Loaded - last date: {data.get('last_date', '?')}")
         return data
     except Exception as e:
         print(f"[Checkpoint] Failed to load: {e}")
@@ -226,7 +221,7 @@ def save_checkpoint(state, last_date):
         data['trough_price'] = 1e15
     with open(CHECKPOINT, 'w') as f:
         json.dump(data, f, indent=2)
-    print(f"[Checkpoint] Saved — last date: {last_date}")
+    print(f"[Checkpoint] Saved - last date: {last_date}")
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -243,7 +238,7 @@ def main():
         sys.exit(1)
 
     # ── Load CSV ──────────────────────────────────────────────────────────────
-    print(f"[Load] Reading {CSV_PATH} …")
+    print(f"[Load] Reading {CSV_PATH} ...")
     df = pd.read_csv(CSV_PATH, low_memory=False)
     df['Date'] = _parse_dates(df['Date'])
     df = df.dropna(subset=['Date']).sort_values('Date').reset_index(drop=True)
@@ -254,7 +249,7 @@ def main():
     if 'Engine_Stage' not in df.columns:
         df['Engine_Stage'] = ''
 
-    print(f"[Load] {len(df)} rows  {df['Date'].iloc[0].date()} → {df['Date'].iloc[-1].date()}")
+    print(f"[Load] {len(df)} rows  {df['Date'].iloc[0].date()} -> {df['Date'].iloc[-1].date()}")
 
     # ── Determine start row ───────────────────────────────────────────────────
     force_from = None
@@ -264,7 +259,7 @@ def main():
     elif args.full:
         print(f"[Mode] Full recompute from {START_YEAR} (--full flag)")
     else:
-        print(f"[Mode] Incremental — filling missing Engine_Hedge_Target rows only")
+        print(f"[Mode] Incremental - filling missing Engine_Hedge_Target rows only")
 
     # Rows eligible for computation: 2015 onwards (VIX data available)
     cutoff_date = force_from if force_from else pd.Timestamp(f'{START_YEAR}-01-01')
@@ -306,13 +301,13 @@ def main():
         else:
             state = dict(ENGINE_DEFAULTS)
             state['trough_price'] = float('inf')
-            print(f"[State] No valid checkpoint — starting fresh")
+            print(f"[State] No valid checkpoint - starting fresh")
 
     # ── Slice rows to process ─────────────────────────────────────────────────
     process_mask = df['Date'] >= compute_from_date
     process_df   = df[process_mask].copy()
     print(f"[Engine] Processing {len(process_df)} rows "
-          f"({compute_from_date.date()} → {df['Date'].iloc[-1].date()}) …")
+          f"({compute_from_date.date()} -> {df['Date'].iloc[-1].date()}) ...")
 
     # ── Replay ───────────────────────────────────────────────────────────────
     rolling_peak  = state.get('peak_price', 0.0)
@@ -389,7 +384,7 @@ def main():
     print(f"  1. Verify a few values look reasonable")
     print(f"  2. git add MARKET_DATA.csv engine_state_checkpoint.json")
     print(f"  3. git commit -m 'pre-compute engine history'")
-    print(f"  4. git push  →  Render picks up new CSV on next deploy")
+    print(f"  4. git push  ->  Render picks up new CSV on next deploy")
     print(f"\n  For future CSV updates:")
     print(f"  → Add new rows to MARKET_DATA.csv")
     print(f"  → Run: python bootstrap_engine_history.py   (incremental)")
