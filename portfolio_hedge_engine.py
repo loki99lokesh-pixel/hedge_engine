@@ -48,7 +48,14 @@ def fetch_live_nifty_status():
         
         # Calculate the percentage gap between current price and 100-DMA
         gap_pct = ((latest_close - latest_100dma) / latest_100dma) * 100
-        
+
+        # Calculate drawdown from the 6-month rolling high — this is the engine's
+        # actual drawdown input (dd_from_peak_pct), distinct from the DMA gap above.
+        # A market can be several % below its 6M peak while still above the 100-DMA,
+        # so these two metrics are not interchangeable (see v3.1 architecture notes).
+        rolling_high_180d = hist['Close'].max()
+        dd_from_peak_pct = ((latest_close - rolling_high_180d) / rolling_high_180d) * 100
+
         # Determine if the tactical trigger is met (Nifty is below 100-DMA by at least 2%)
         trigger_active = gap_pct <= -2.0 
 
@@ -56,6 +63,7 @@ def fetch_live_nifty_status():
             "close": round(latest_close, 2),
             "dma100": round(latest_100dma, 2),
             "gap_pct": round(gap_pct, 2),
+            "dd_from_peak_pct": round(dd_from_peak_pct, 2),
             "trigger_active": trigger_active
         }
     except Exception as e:
@@ -798,8 +806,8 @@ def build_excel(df_portfolio, metrics, hedge_sizing, scenario_df, output_path):
             _border(c)
         ws5.row_dimensions[row].height = 20
 
-    p1_put_str = f"{_pe['p1_hedge_pct']:.0f}% of notional" + (f"  ({fmt_inr(pv5 * _pe['p1_hedge_pct'] / 100):.0f})" if pv5 else "")
-    p2_put_str = f"{_pe['p2_hedge_pct']:.0f}% of notional" + (f"  ({fmt_inr(pv5 * _pe['p2_hedge_pct'] / 100):.0f})" if pv5 else "")
+    p1_put_str = f"{_pe['p1_hedge_pct']:.0f}% of notional" + (f"  ({fmt_inr(pv5 * _pe['p1_hedge_pct'] / 100)})" if pv5 else "")
+    p2_put_str = f"{_pe['p2_hedge_pct']:.0f}% of notional" + (f"  ({fmt_inr(pv5 * _pe['p2_hedge_pct'] / 100)})" if pv5 else "")
     p2_eq_str  = f"-{_pe['p2_equity_trim']:.0f}%  →  {_pe['p2_new_equity']:.1f}%" + (f"  (~{fmt_inr(pv5 * _pe['p2_equity_trim'] / 100)})" if pv5 else "")
 
     rows5 = [
@@ -976,8 +984,14 @@ def generate_text_report(metrics, hedge_sizing, scenario_df, output_path, live_n
     _vix_for_path = 18.5
     _dd_for_path  = 0.0
     if live_nifty:
+        # NOTE: fetch_live_nifty_status() does not return a 'vix' key, so this
+        # always falls back to the 18.5 default. Left as-is pending a live VIX
+        # source for the standalone report path; dashboard reports get live VIX
+        # via /api/v3_hedge separately.
         _vix_for_path = live_nifty.get('vix', 18.5)
-        _dd_for_path  = live_nifty.get('gap_pct', 0.0)
+        # Use dd_from_peak_pct (6M rolling-high drawdown) — the engine's actual
+        # drawdown input — not gap_pct (DMA gap), which understates drawdown depth.
+        _dd_for_path  = live_nifty.get('dd_from_peak_pct', live_nifty.get('gap_pct', 0.0))
 
     eq_wt  = metrics.get('equity_weight', 60.0)
     _path  = compute_equity_reduction_path(pb, _vix_for_path, _dd_for_path, eq_wt, pv)
@@ -1149,8 +1163,12 @@ def generate_docx_report(metrics, hedge_sizing, scenario_df, output_path, live_n
     )
 
     # 7. Dual-Path Comparison (Harvey Ch.3)
-    _vix_w  = live_nifty.get('vix', 18.5)    if live_nifty else 18.5
-    _dd_w   = live_nifty.get('gap_pct', 0.0) if live_nifty else 0.0
+    # NOTE: fetch_live_nifty_status() does not return a 'vix' key, so this
+    # always falls back to 18.5 pending a live VIX source for this report path.
+    _vix_w  = live_nifty.get('vix', 18.5) if live_nifty else 18.5
+    # Use dd_from_peak_pct (6M rolling-high drawdown) — the engine's actual
+    # drawdown input — not gap_pct (DMA gap), which understates drawdown depth.
+    _dd_w   = live_nifty.get('dd_from_peak_pct', live_nifty.get('gap_pct', 0.0)) if live_nifty else 0.0
     eq_wt_w = metrics.get('equity_weight', 60.0)
     _pw     = compute_equity_reduction_path(pb, _vix_w, _dd_w, eq_wt_w, pv)
 
@@ -1462,51 +1480,42 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
             final_target = 100.0
             active_stage = "Stage 3: Escalated (SEVERE unconditional)"
 
-    # 6. Fix 7: De-escalation Gate (Memory Check)
-    low_vol_days = state.get('low_vol_days', 0)
-    if new_calendar_day:
-        if rv20d < 22 and vix < 20:
-            low_vol_days += 1
-        else:
-            low_vol_days = 0
-
+# 6. De-escalation: decay-based ratchet (replaces gate + low_vol_days)
+    # decay_rate=0.30, snap at sod_buffer — only runs once per calendar day
     incoming_prev_hedge = state.get('prev_hedge', 0)
 
     if dd_pct == 0:
         incoming_prev_hedge = 0
-        low_vol_days = 0
         days_in_dd = 0
 
     final_target = round(final_target, 1)
-    gate_threshold_check = sod_natural_target + sod_buffer
 
-    if incoming_prev_hedge > gate_threshold_check and "Stage 3" not in active_stage:
-        # Bypass gate entirely if SOD drawdown is trivial (< 2%)
-        if sod_dd_pct < 2.0:
-            pass  
+    if new_calendar_day:
+        if dd_pct == 0:
+            new_prev_hedge = 0.0
+        elif final_target > incoming_prev_hedge:
+            # Stress increased → ratchet up immediately
+            new_prev_hedge = final_target
         else:
-            # Escape Route 1: Price Momentum (uses frozen SOD value to prevent mid-day wobble)
-            cleared_by_price = (sod_recovery_ratio >= 0.40)
-            
-            # Escape Route 2: Volatility Collapse 
-            cleared_by_vol = (low_vol_days >= 5)
-            
-            # Gate clears if EITHER condition is met
-            gate_cleared = (cleared_by_price or cleared_by_vol) and (days_in_dd >= 3)
-            
-            if not gate_cleared:
-                final_target = incoming_prev_hedge
-                # Do NOT override active_stage — market conditions determine stage
-                # Gate lock is surfaced separately via diagnostics
+            # Stress reducing → decay toward s1_target
+            decay = 0.30 * (incoming_prev_hedge - s1_target)
+            new_prev_hedge = max(incoming_prev_hedge - decay, s1_target)
+            # Snap to natural if within sod_buffer — avoids asymptotic drag
+            if (new_prev_hedge - s1_target) <= sod_buffer:
+                new_prev_hedge = s1_target
+    else:
+        # Intraday: hold prev_hedge frozen — no updates until next calendar day
+        new_prev_hedge = incoming_prev_hedge
 
-    new_prev_hedge = max(incoming_prev_hedge, final_target) if dd_pct > 0 else 0.0
+    # Final output is max of what engine naturally wants and prev_hedge
+    if dd_pct > 0:
+        final_target = max(final_target, new_prev_hedge)
 
     # 7. Compile Final State and Diagnostics
     new_state = {
         'peak_price': peak,
         'trough_price': trough,
         'days_in_dd': days_in_dd,
-        'low_vol_days': low_vol_days,
         'prev_hedge': new_prev_hedge,
         'ema_vix': vix,
         'sod_dd_pct': sod_dd_pct,
@@ -1521,9 +1530,8 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
         and sod_dd_pct >= 2.0
         and "Stage 3" not in active_stage
     )
-    _gate_locked = _gate_active and not (
-        (sod_recovery_ratio >= 0.40 or low_vol_days >= 5) and days_in_dd >= 3
-    )
+    # gate_locked: prev_hedge is holding above what engine naturally wants
+    _gate_locked = (new_prev_hedge > final_target) and dd_pct > 0
 
     diagnostics = {
         'onset_score'     : round(onset_score, 1),
@@ -1534,7 +1542,7 @@ def calculate_v3_magnitude_hedge(vix, rv20d, fpi_net, gap_pct, current_price, st
         'gate_locked'     : _gate_locked,
         'gate_prev_hedge' : round(incoming_prev_hedge, 1),
         'recovery_ratio'  : round(sod_recovery_ratio, 3),
-        'low_vol_days'    : low_vol_days,
+        'low_vol_days'    : 0,   # deprecated — kept for API response compatibility
     }
 
     return final_target, active_stage, diagnostics, new_state
