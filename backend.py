@@ -955,6 +955,19 @@ def get_v3_magnitude_hedge():
         # 4. Load persisted state memory (peak/trough/days_in_dd/low_vol_days)
         state = load_v3_state()
 
+        # SELF-HEAL: bootstrap_v3_state() normally only runs once, at process
+        # start. If Redis loses its data independently mid-run (restart,
+        # recycle, eviction on the free tier) while this web process keeps
+        # running, peak_price==0 shows up here but bootstrap never re-fires,
+        # leaving v3_chart_history permanently empty until a manual redeploy.
+        # Since bootstrap_v3_state() already no-ops unless peak_price==0,
+        # it's safe to call it here on every request that finds empty state —
+        # it only does real work (CSV replay) when genuinely needed.
+        if state.get('peak_price', 0) == 0:
+            print("[Self-Heal] peak_price=0 on live request - re-running bootstrap.")
+            bootstrap_v3_state()
+            state = load_v3_state()
+
         # If peak_price is 0 (fresh state after reset or first boot), seed it
         # from the live 6M rolling high so the engine's internal dd_pct aligns
         # immediately with dd_from_peak_pct. Without this, the engine starts
@@ -1028,6 +1041,15 @@ def get_v3_magnitude_hedge():
                     save_state('v3_chart_history', history[-3650:])  # rolling 10 years
             except Exception as e:
                 print(f"[Chart History] Append failed: {e}")
+                try:
+                    import traceback
+                    save_state('chart_append_error', {
+                        'message': str(e),
+                        'traceback': traceback.format_exc(),
+                        'date': today_str,
+                    })
+                except Exception:
+                    pass
 
         # Look up VIX at HWM date for dynamic cost comparison
         peak_date_str = new_state.get('peak_date', '')
@@ -1109,6 +1131,15 @@ def get_bootstrap_error():
     """Returns the last bootstrap exception, if any. Temporary debug route."""
     try:
         err = get_state('bootstrap_error')
+        return jsonify({'status': 'success', 'error': err})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/chart_append_error', methods=['GET'])
+def get_chart_append_error():
+    """Returns the last daily chart-append exception, if any. Temporary debug route."""
+    try:
+        err = get_state('chart_append_error')
         return jsonify({'status': 'success', 'error': err})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
