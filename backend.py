@@ -6,6 +6,7 @@ import io
 
 import json
 import redis
+import secrets
 
 import pandas as pd
 import requests
@@ -1081,8 +1082,97 @@ def get_v3_magnitude_hedge():
         traceback.print_exc()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+# ══════════════════════════════════════════════════════════════
+# ADMIN — PIN login + FPI override
+# These were being called by dashboard.html but never existed in
+# backend.py, which is why /api/admin/auth returned 404/405 and the
+# admin panel could never authenticate. PIN is read from the ADMIN_PIN
+# environment variable already set on Render — nothing hardcoded here.
+# ══════════════════════════════════════════════════════════════
+ADMIN_PIN = os.environ.get('ADMIN_PIN', '')
+ADMIN_SESSION_HOURS = 8
+
+def _issue_admin_token():
+    token = secrets.token_hex(24)
+    save_state(f'admin_session:{token}', {'expires_at': time.time() + ADMIN_SESSION_HOURS * 3600})
+    return token
+
+def _check_admin_token():
+    """True if the request's X-Admin-Token header maps to a live, unexpired session."""
+    token = request.headers.get('X-Admin-Token', '')
+    if not token:
+        return False
+    session = get_state(f'admin_session:{token}')
+    if not session:
+        return False
+    return time.time() < session.get('expires_at', 0)
+
+@app.route('/api/admin/auth', methods=['POST'])
+def admin_auth():
+    try:
+        if not ADMIN_PIN:
+            return jsonify({'status': 'error', 'message': 'ADMIN_PIN not set on server.'}), 500
+        payload = request.get_json(silent=True) or {}
+        pin = str(payload.get('pin', ''))
+        if not secrets.compare_digest(pin, ADMIN_PIN):
+            return jsonify({'status': 'error', 'message': 'Invalid PIN.'}), 401
+        return jsonify({'status': 'success', 'token': _issue_admin_token()})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/admin/logout', methods=['POST'])
+def admin_logout():
+    try:
+        token = request.headers.get('X-Admin-Token', '')
+        if token:
+            save_state(f'admin_session:{token}', None)
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/admin/fpi', methods=['GET', 'POST'])
+def admin_fpi():
+    if not _check_admin_token():
+        return jsonify({'status': 'error', 'message': 'Unauthorized.'}), 401
+    try:
+        if request.method == 'GET':
+            return jsonify({'status': 'success', 'data': get_state('fpi_admin_state') or {}})
+        payload = request.get_json(silent=True) or {}
+        weekly = payload.get('weekly')
+        if weekly is None:
+            return jsonify({'status': 'error', 'message': 'weekly is required.'}), 400
+        ytd = payload.get('ytd')
+        data = {
+            'weekly': float(weekly),
+            'ytd': float(ytd) if ytd is not None else None,
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        }
+        save_state('fpi_admin_state', data)
+        return jsonify({'status': 'success', 'data': data})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/fpi_public', methods=['GET'])
+def fpi_public():
+    """Public, unauthenticated — lets any visitor's dashboard show the
+    admin's latest FPI reading without needing to log in."""
+    try:
+        data = get_state('fpi_admin_state') or {}
+        return jsonify({
+            'status': 'ok',
+            'weekly': data.get('weekly'),
+            'ytd': data.get('ytd'),
+            'updated_at': data.get('updated_at'),
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/api/v3_reset', methods=['POST'])
 def reset_v3_state(): 
+    # Now gated behind the same admin token — previously this destructive
+    # action had zero auth even though the frontend already sent a token.
+    if not _check_admin_token():
+        return jsonify({'status': 'error', 'message': 'Unauthorized.'}), 401
     # Clears the persisted v3.2 state file so the engine starts fresh.
     try: 
         fresh_state = {
